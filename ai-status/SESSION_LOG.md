@@ -1,5 +1,32 @@
 # KeePass to CyberArk Importer - Session Log
 
+## Session: 2026-02-23 (coverage push)
+
+**Summary:** Closed all coverage gaps, taking the test suite from 90% (108 tests) to 100% (129 tests).
+
+### Tasks Completed
+
+1. **Coverage gap analysis** -- Identified all 52 uncovered lines across 5 modules, categorized each gap by type (integration paths, error paths, defensive guards, edge cases)
+2. **CLI tests (28 lines)** -- Added 10 tests covering config loading, map-file loading, missing-safe validation, CSV/kdbx error paths, and the full non-dry-run import loop (create, duplicate, fail)
+3. **Auth tests (17 lines)** -- Added 5 tests covering callback without code/error, wait_for_code, and the full authenticate() orchestrator with mocked browser and threading
+4. **Mapper tests (5 lines)** -- Added 4 tests covering error-raise paths for missing safe, no fallback, no match, and bare URL address extraction
+5. **Config test (1 line)** -- Added 1 test for YAML that parses to non-dict
+6. **Reader test (1 line)** -- Added 1 test for Recycle Bin entry skipping
+7. **Pragma annotation** -- Marked unreachable enum exhaustion guard (mapper.py:112) with pragma: no cover
+
+### Test Results
+
+- 129 tests passed (21 new tests added)
+- Coverage: 100% (537 statements, 0 missed)
+
+### Commits
+
+```
+e7bb2d1 test: close all coverage gaps -- 108 to 129 tests, 90% to 100% coverage
+```
+
+---
+
 ## Session: 2026-02-23 (continued)
 
 **Summary:** Implemented all three CSV features: export command, CSV input mode, and enhanced reports.
@@ -66,9 +93,3 @@ cf3988e feat(auth): add OAuth2 PKCE authentication with local callback server
 6178e91 feat(cli): add Click CLI with import, validate, and list-safes commands
 02dec16 feat: add Dockerfile and complete README documentation
 ```
-
-### Next Steps
-
-- **CSV export feature (priority):** Export KeePass entries directly to CSV format for manual CyberArk import workflows
-- **CSV input mode:** Support reading from CSV files instead of .kdbx for pre-processed data
-- **Enhanced CSV reports:** Richer import reporting with additional metadata columns
