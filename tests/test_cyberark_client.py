@@ -110,3 +110,12 @@ class TestCreateAccount:
         )
         with pytest.raises(ValueError, match="Safe not found"):
             client.create_account(sample_account)
+
+
+class TestClose:
+    def test_close_shuts_down_http_client(self, client):
+        """Verify close() calls through to the httpx client."""
+        client.close()
+        # After close, further requests should fail
+        with pytest.raises(Exception):
+            client.list_safes()

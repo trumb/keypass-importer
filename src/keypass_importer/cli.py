@@ -193,18 +193,12 @@ def import_cmd(
 
     click.echo(f"Found {len(entries)} entries in {source_name}")
 
-    if dry_run:
-        click.echo("\n[Dry run] Mapping entries without importing...\n")
-
-    # Authenticate (even in dry-run, to validate credentials)
-    token = authenticate(tenant_url, client_id)
-    client = CyberArkClient(tenant_url, token.access_token)
-
     results: list[ImportResult] = []
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        for entry in tqdm(entries, desc="Importing", disable=dry_run):
+    if dry_run:
+        click.echo("\n[Dry run] Mapping entries without importing...\n")
+        for entry in entries:
             try:
                 account = map_entry(
                     entry,
@@ -213,62 +207,23 @@ def import_cmd(
                     default_platform=default_platform,
                     mapping_rules=mapping_rules,
                 )
-
                 _platform = detect_platform(entry.url)
                 _ts = datetime.now(timezone.utc).isoformat()
-
-                if dry_run:
-                    click.echo(
-                        f"  [{entry.group_path_str or 'root'}] {entry.title} "
-                        f"-> safe={account.safe_name} platform={account.platform_id}"
-                    )
-                    results.append(
-                        ImportResult(
-                            entry_title=entry.title,
-                            entry_group=entry.group_path_str,
-                            status="imported",
-                            safe_name=account.safe_name,
-                            detected_platform=_platform,
-                            url=entry.url,
-                            timestamp=_ts,
-                        )
-                    )
-                    continue
-
-                # Check for duplicates
-                existing_id = client.find_existing_account(
-                    account.safe_name, account.address, account.username
+                click.echo(
+                    f"  [{entry.group_path_str or 'root'}] {entry.title} "
+                    f"-> safe={account.safe_name} platform={account.platform_id}"
                 )
-                if existing_id:
-                    results.append(
-                        ImportResult(
-                            entry_title=entry.title,
-                            entry_group=entry.group_path_str,
-                            status="duplicate",
-                            safe_name=account.safe_name,
-                            account_id=existing_id,
-                            detected_platform=_platform,
-                            url=entry.url,
-                            timestamp=_ts,
-                        )
-                    )
-                    continue
-
-                # Create account
-                account_id = client.create_account(account)
                 results.append(
                     ImportResult(
                         entry_title=entry.title,
                         entry_group=entry.group_path_str,
                         status="imported",
                         safe_name=account.safe_name,
-                        account_id=account_id,
                         detected_platform=_platform,
                         url=entry.url,
                         timestamp=_ts,
                     )
                 )
-
             except Exception as exc:
                 results.append(
                     ImportResult(
@@ -281,9 +236,74 @@ def import_cmd(
                         timestamp=datetime.now(timezone.utc).isoformat(),
                     )
                 )
+    else:
+        # Authenticate only for real imports
+        token = authenticate(tenant_url, client_id)
+        client = CyberArkClient(tenant_url, token.access_token)
 
-    finally:
-        client.close()
+        try:
+            for entry in tqdm(entries, desc="Importing"):
+                try:
+                    account = map_entry(
+                        entry,
+                        mode=mode,
+                        safe_name=safe,
+                        default_platform=default_platform,
+                        mapping_rules=mapping_rules,
+                    )
+
+                    _platform = detect_platform(entry.url)
+                    _ts = datetime.now(timezone.utc).isoformat()
+
+                    # Check for duplicates
+                    existing_id = client.find_existing_account(
+                        account.safe_name, account.address, account.username
+                    )
+                    if existing_id:
+                        results.append(
+                            ImportResult(
+                                entry_title=entry.title,
+                                entry_group=entry.group_path_str,
+                                status="duplicate",
+                                safe_name=account.safe_name,
+                                account_id=existing_id,
+                                detected_platform=_platform,
+                                url=entry.url,
+                                timestamp=_ts,
+                            )
+                        )
+                        continue
+
+                    # Create account
+                    account_id = client.create_account(account)
+                    results.append(
+                        ImportResult(
+                            entry_title=entry.title,
+                            entry_group=entry.group_path_str,
+                            status="imported",
+                            safe_name=account.safe_name,
+                            account_id=account_id,
+                            detected_platform=_platform,
+                            url=entry.url,
+                            timestamp=_ts,
+                        )
+                    )
+
+                except Exception as exc:
+                    results.append(
+                        ImportResult(
+                            entry_title=entry.title,
+                            entry_group=entry.group_path_str,
+                            status="failed",
+                            error=str(exc),
+                            detected_platform=detect_platform(entry.url),
+                            url=entry.url,
+                            timestamp=datetime.now(timezone.utc).isoformat(),
+                        )
+                    )
+
+        finally:
+            client.close()
 
     # Write reports
     write_results_csv(results, output_dir / "results.csv")
