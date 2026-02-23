@@ -30,9 +30,6 @@ nul
 *.secret
 *.key
 
-# AI status (local only, not committed)
-ai-status/
-
 # Test / coverage
 .pytest_cache/
 htmlcov/
