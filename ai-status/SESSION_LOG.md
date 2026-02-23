@@ -1,5 +1,28 @@
 # KeePass to CyberArk Importer - Session Log
 
+## Session: 2026-02-23 (dry-run fix)
+
+**Summary:** Fixed dry-run mode to work offline (no CyberArk auth required), validated with real .kdbx file, added 3 tests.
+
+### Tasks Completed
+
+1. **Real-world .kdbx validation** -- Tested reader and CLI against a real KeePass database, confirmed 2 entries parsed correctly
+2. **Dry-run bug fix** -- Discovered that `--dry-run` was calling `authenticate()`, requiring live CyberArk connectivity. Refactored `cli.py` to separate dry-run and real-import code paths so dry-run works fully offline
+3. **Coverage restoration** -- Added 3 tests to cover new code paths: dry-run mapping error handler, client close() in CLI, and client close() in unit tests
+
+### Test Results
+
+- 132 tests passed (3 new tests added)
+- Coverage: 100% (542 statements, 0 missed)
+
+### Commits
+
+```
+edaf25a fix(cli): skip authentication in dry-run mode
+```
+
+---
+
 ## Session: 2026-02-23 (coverage push)
 
 **Summary:** Closed all coverage gaps, taking the test suite from 90% (108 tests) to 100% (129 tests).

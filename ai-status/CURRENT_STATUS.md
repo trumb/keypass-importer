@@ -1,6 +1,6 @@
 # KeePass to CyberArk Importer - Current Status
 
-**Status:** Feature complete, fully tested
+**Status:** Feature complete, fully tested, dry-run offline mode
 **Date:** 2026-02-23
 
 ## Module Status
@@ -17,12 +17,12 @@
 | `reporter.py` | Complete | 100% | CSV report writer with status filtering, platform, URL, and timestamps |
 | `cyberark_auth.py` | Complete | 100% | OAuth2 PKCE authentication with local callback server |
 | `cyberark_client.py` | Complete | 100% | CyberArk Privilege Cloud REST API client |
-| `cli.py` | Complete | 100% | Click CLI with import, validate, list-safes, and export commands; --from-csv option |
+| `cli.py` | Complete | 100% | Click CLI with import, validate, list-safes, and export commands; --from-csv option; offline dry-run |
 
 ## Test Results
 
-- **Total tests:** 129 passed
-- **Overall coverage:** 100% (537 statements, 0 missed)
+- **Total tests:** 132 passed
+- **Overall coverage:** 100% (542 statements, 0 missed)
 - **All 11 modules at 100% coverage**
 
 ## Coverage Gap Analysis
