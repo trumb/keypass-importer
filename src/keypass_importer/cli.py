@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -13,7 +14,7 @@ from keypass_importer.config import load_config
 from keypass_importer.cyberark_auth import authenticate
 from keypass_importer.cyberark_client import CyberArkClient
 from keypass_importer.keepass_reader import read_keepass
-from keypass_importer.mapper import map_entry
+from keypass_importer.mapper import detect_platform, map_entry
 from keypass_importer.models import ImportResult, ImportSummary, MappingMode
 from keypass_importer.reporter import write_results_csv, write_summary
 
@@ -62,8 +63,33 @@ def list_safes(tenant_url: str, client_id: str):
         client.close()
 
 
-@cli.command("import")
+@cli.command()
 @click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default="export.csv",
+    help="Output CSV path.",
+)
+@click.option("--no-notes", is_flag=True, help="Exclude notes from export.")
+def export(kdbx_file: Path, output: Path, no_notes: bool):
+    """Export KeePass entries to CSV for auditing (no passwords)."""
+    password = click.prompt("KeePass master password", hide_input=True)
+    try:
+        entries = read_keepass(kdbx_file, password=password)
+    except (ValueError, FileNotFoundError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    from keypass_importer.exporter import export_entries_csv
+
+    count = export_entries_csv(entries, output, include_notes=not no_notes)
+    click.echo(f"Exported {count} entries to {output}")
+
+
+@cli.command("import")
+@click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path), required=False)
 @click.option("--tenant-url", required=True, help="CyberArk tenant URL.")
 @click.option("--client-id", required=True, help="OIDC client ID.")
 @click.option("--safe", default=None, help="Target safe (single mode).")
@@ -94,8 +120,15 @@ def list_safes(tenant_url: str, client_id: str):
     default=None,
     help="YAML config file.",
 )
+@click.option(
+    "--from-csv",
+    "from_csv",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Read entries from a CSV file instead of .kdbx.",
+)
 def import_cmd(
-    kdbx_file: Path,
+    kdbx_file: Path | None,
     tenant_url: str,
     client_id: str,
     safe: str | None,
@@ -105,8 +138,14 @@ def import_cmd(
     dry_run: bool,
     output_dir: Path,
     config_path: Path | None,
+    from_csv: Path | None,
 ):
     """Import KeePass entries into CyberArk Privilege Cloud."""
+    # Validate input source
+    if not kdbx_file and not from_csv:
+        click.echo("Error: Provide a KDBX_FILE argument or --from-csv option.", err=True)
+        sys.exit(1)
+
     # Load config file if provided (CLI flags override config values)
     mapping_rules = None
     if config_path:
@@ -133,15 +172,26 @@ def import_cmd(
         click.echo("Error: --safe is required for single mapping mode.", err=True)
         sys.exit(1)
 
-    # Read KeePass
-    password = click.prompt("KeePass master password", hide_input=True)
-    try:
-        entries = read_keepass(kdbx_file, password=password)
-    except (ValueError, FileNotFoundError) as exc:
-        click.echo(f"Error: {exc}", err=True)
-        sys.exit(1)
+    # Read entries from CSV or KeePass
+    if from_csv:
+        from keypass_importer.csv_reader import read_csv_entries
 
-    click.echo(f"Found {len(entries)} entries in {kdbx_file.name}")
+        try:
+            entries = read_csv_entries(from_csv)
+        except (ValueError, FileNotFoundError) as exc:
+            click.echo(f"Error: {exc}", err=True)
+            sys.exit(1)
+        source_name = from_csv.name
+    else:
+        password = click.prompt("KeePass master password", hide_input=True)
+        try:
+            entries = read_keepass(kdbx_file, password=password)
+        except (ValueError, FileNotFoundError) as exc:
+            click.echo(f"Error: {exc}", err=True)
+            sys.exit(1)
+        source_name = kdbx_file.name
+
+    click.echo(f"Found {len(entries)} entries in {source_name}")
 
     if dry_run:
         click.echo("\n[Dry run] Mapping entries without importing...\n")
@@ -164,6 +214,9 @@ def import_cmd(
                     mapping_rules=mapping_rules,
                 )
 
+                _platform = detect_platform(entry.url)
+                _ts = datetime.now(timezone.utc).isoformat()
+
                 if dry_run:
                     click.echo(
                         f"  [{entry.group_path_str or 'root'}] {entry.title} "
@@ -175,6 +228,9 @@ def import_cmd(
                             entry_group=entry.group_path_str,
                             status="imported",
                             safe_name=account.safe_name,
+                            detected_platform=_platform,
+                            url=entry.url,
+                            timestamp=_ts,
                         )
                     )
                     continue
@@ -191,6 +247,9 @@ def import_cmd(
                             status="duplicate",
                             safe_name=account.safe_name,
                             account_id=existing_id,
+                            detected_platform=_platform,
+                            url=entry.url,
+                            timestamp=_ts,
                         )
                     )
                     continue
@@ -204,6 +263,9 @@ def import_cmd(
                         status="imported",
                         safe_name=account.safe_name,
                         account_id=account_id,
+                        detected_platform=_platform,
+                        url=entry.url,
+                        timestamp=_ts,
                     )
                 )
 
@@ -214,6 +276,9 @@ def import_cmd(
                         entry_group=entry.group_path_str,
                         status="failed",
                         error=str(exc),
+                        detected_platform=detect_platform(entry.url),
+                        url=entry.url,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
                     )
                 )
 

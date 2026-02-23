@@ -1,5 +1,6 @@
 """Tests for CLI commands."""
 
+import csv
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -86,3 +87,96 @@ class TestListSafesCommand:
         assert result.exit_code == 0
         assert "Safe-A" in result.output
         assert "Safe-B" in result.output
+
+
+class TestExportCommand:
+    def test_export_creates_csv(self, runner, sample_kdbx, tmp_path):
+        out = tmp_path / "export.csv"
+        result = runner.invoke(
+            cli,
+            ["export", str(sample_kdbx), "--output", str(out)],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        assert out.exists()
+        assert "Exported 1 entries" in result.output
+
+    def test_export_csv_no_passwords(self, runner, sample_kdbx, tmp_path):
+        out = tmp_path / "export.csv"
+        runner.invoke(
+            cli,
+            ["export", str(sample_kdbx), "--output", str(out)],
+            input="testpass\n",
+        )
+        content = out.read_text(encoding="utf-8")
+        assert "password123" not in content
+        with open(out, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            assert "password" not in reader.fieldnames
+
+    def test_export_bad_password(self, runner, sample_kdbx, tmp_path):
+        out = tmp_path / "export.csv"
+        result = runner.invoke(
+            cli,
+            ["export", str(sample_kdbx), "--output", str(out)],
+            input="wrong\n",
+        )
+        assert result.exit_code != 0
+
+    def test_export_no_notes(self, runner, sample_kdbx, tmp_path):
+        out = tmp_path / "export.csv"
+        result = runner.invoke(
+            cli,
+            ["export", str(sample_kdbx), "--output", str(out), "--no-notes"],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        with open(out, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        for row in rows:
+            assert row["notes"] == ""
+
+
+class TestImportFromCsv:
+    @patch("keypass_importer.cli.authenticate")
+    def test_import_from_csv_dry_run(self, mock_auth, runner, tmp_path):
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        csv_file = tmp_path / "input.csv"
+        csv_file.write_text(
+            "title,username,password,url,group\n"
+            "Web Server,admin,s3cret,https://web.example.com,Servers/Linux\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                "--from-csv", str(csv_file),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--dry-run",
+                "--output-dir", str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Found 1 entries" in result.output
+        assert "Dry run" in result.output
+
+    def test_import_no_source_fails(self, runner, tmp_path):
+        """Neither kdbx_file nor --from-csv produces an error."""
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+            ],
+        )
+        assert result.exit_code != 0
