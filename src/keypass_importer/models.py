@@ -70,6 +70,9 @@ class ImportResult(BaseModel):
     safe_name: str | None = None
     account_id: str | None = None
     error: str | None = None
+    detected_platform: str | None = None
+    url: str | None = None
+    timestamp: str | None = None
 
 
 class ImportSummary(BaseModel):

@@ -12,7 +12,17 @@ from keypass_importer.models import ImportResult, ImportSummary
 
 logger = logging.getLogger(__name__)
 
-_CSV_COLUMNS = ["entry_title", "entry_group", "status", "safe_name", "account_id", "error"]
+_CSV_COLUMNS = [
+    "entry_title",
+    "entry_group",
+    "status",
+    "safe_name",
+    "account_id",
+    "error",
+    "detected_platform",
+    "url",
+    "timestamp",
+]
 
 
 def write_results_csv(
@@ -36,6 +46,9 @@ def write_results_csv(
                 "safe_name": result.safe_name or "",
                 "account_id": result.account_id or "",
                 "error": result.error or "",
+                "detected_platform": result.detected_platform or "",
+                "url": result.url or "",
+                "timestamp": result.timestamp or "",
             })
 
     logger.info("Wrote %d rows to %s", len(filtered), output_path)

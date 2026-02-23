@@ -17,6 +17,9 @@ def sample_results() -> list[ImportResult]:
             status="imported",
             safe_name="Linux-Safe",
             account_id="acc_123",
+            detected_platform="UnixSSH",
+            url="ssh://server-a.example.com:22",
+            timestamp="2026-02-23T12:00:00+00:00",
         ),
         ImportResult(
             entry_title="Server B",
@@ -24,6 +27,9 @@ def sample_results() -> list[ImportResult]:
             status="duplicate",
             safe_name="Linux-Safe",
             account_id="acc_existing",
+            detected_platform="PostgreSQL",
+            url="db.example.com:5432",
+            timestamp="2026-02-23T12:00:01+00:00",
         ),
         ImportResult(
             entry_title="Bad Entry",
@@ -60,6 +66,9 @@ class TestWriteResultsCsv:
         assert "safe_name" in row
         assert "account_id" in row
         assert "error" in row
+        assert "detected_platform" in row
+        assert "url" in row
+        assert "timestamp" in row
 
     def test_no_secrets_in_csv(self, tmp_path: Path, sample_results):
         """Verify passwords never appear in CSV output."""
@@ -85,6 +94,20 @@ class TestWriteResultsCsv:
             rows = list(csv.DictReader(f))
         assert len(rows) == 1
         assert rows[0]["error"] == "Safe not found: BadSafe"
+
+    def test_new_columns_have_correct_data(self, tmp_path: Path, sample_results):
+        out = tmp_path / "results.csv"
+        write_results_csv(sample_results, out)
+        with open(out) as f:
+            rows = list(csv.DictReader(f))
+        # First result has platform, url, and timestamp
+        assert rows[0]["detected_platform"] == "UnixSSH"
+        assert rows[0]["url"] == "ssh://server-a.example.com:22"
+        assert rows[0]["timestamp"] == "2026-02-23T12:00:00+00:00"
+        # Third result (failed) has empty new fields
+        assert rows[2]["detected_platform"] == ""
+        assert rows[2]["url"] == ""
+        assert rows[2]["timestamp"] == ""
 
     def test_empty_results(self, tmp_path: Path):
         out = tmp_path / "results.csv"
