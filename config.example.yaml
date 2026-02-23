@@ -1,0 +1,31 @@
+# KeePass to CyberArk Importer — Configuration
+# Copy to config.yaml and edit values.
+
+# CyberArk Privilege Cloud tenant URL (required)
+tenant_url: https://your-tenant.cyberark.cloud
+
+# OIDC application client ID registered in CyberArk Identity (required)
+client_id: your-oidc-client-id
+
+# Target safe name (required for 'single' mapping mode)
+safe: Default-Safe
+
+# Mapping mode: single | group | config
+mapping_mode: single
+
+# Override platform auto-detection with a fixed platform ID
+# default_platform: UnixSSH
+
+# Directory for CSV report output (default: current directory)
+# output_dir: ./reports
+
+# Mapping rules (only used when mapping_mode=config)
+# mapping_rules:
+#   - group: Infrastructure/Linux
+#     safe: Linux-Safe
+#     platform: UnixSSH
+#   - group: Infrastructure/Windows
+#     safe: Windows-Safe
+#     platform: WinServerLocal
+#   - group: Databases
+#     safe: DB-Safe
