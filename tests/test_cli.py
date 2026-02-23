@@ -180,3 +180,309 @@ class TestImportFromCsv:
             ],
         )
         assert result.exit_code != 0
+
+
+class TestConfigPathBranch:
+    """Tests for --config loading (lines 152-160)."""
+
+    @patch("keypass_importer.cli.authenticate")
+    def test_config_file_populates_options(self, mock_auth, runner, sample_kdbx, tmp_path):
+        """A YAML config file fills in safe, mapping_mode, default_platform, and output_dir."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "tenant_url: https://t.cyberark.cloud\n"
+            "client_id: app\n"
+            "safe: ConfigSafe\n"
+            "mapping_mode: single\n"
+            "default_platform: UnixSSH\n"
+            "output_dir: " + str(tmp_path / "reports") + "\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--config", str(config_file),
+                "--dry-run",
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        assert "Found 1 entries" in result.output
+
+    @patch("keypass_importer.cli.authenticate")
+    def test_config_with_mapping_rules(self, mock_auth, runner, sample_kdbx, tmp_path):
+        """Config with mapping_rules is loaded without error."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "tenant_url: https://t.cyberark.cloud\n"
+            "client_id: app\n"
+            "safe: MySafe\n"
+            "mapping_mode: single\n"
+            "mapping_rules:\n"
+            "  - group: Servers\n"
+            "    safe: ServerSafe\n"
+            "    platform: UnixSSH\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--config", str(config_file),
+                "--dry-run",
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+
+
+class TestMapFileBranch:
+    """Tests for --map-file loading (lines 163-166)."""
+
+    @patch("keypass_importer.cli.authenticate")
+    def test_map_file_loads_mapping_rules(self, mock_auth, runner, sample_kdbx, tmp_path):
+        """--map-file loads mapping_rules from a separate YAML file."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        map_file = tmp_path / "map.yaml"
+        map_file.write_text(
+            "tenant_url: https://t.cyberark.cloud\n"
+            "client_id: app\n"
+            "mapping_rules:\n"
+            "  - group: Servers\n"
+            "    safe: ServerSafe\n"
+            "    platform: UnixSSH\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--map-file", str(map_file),
+                "--dry-run",
+                "--output-dir", str(tmp_path),
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+
+
+class TestMissingSafe:
+    """Tests for missing --safe in single mode (lines 172-173)."""
+
+    @patch("keypass_importer.cli.authenticate")
+    def test_single_mode_without_safe_fails(self, mock_auth, runner, sample_kdbx, tmp_path):
+        """Single mapping mode without --safe produces an error."""
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--mapping-mode", "single",
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code != 0
+        assert "--safe is required" in result.output or "--safe is required" in (result.output + (result.stderr or ""))
+
+
+class TestCsvReadError:
+    """Tests for CSV read error path (lines 181-183)."""
+
+    @patch("keypass_importer.cli.authenticate")
+    def test_import_from_csv_read_error(self, mock_auth, runner, tmp_path):
+        """A malformed CSV (missing required columns) produces an error."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        bad_csv = tmp_path / "bad.csv"
+        bad_csv.write_text("col_a,col_b\nval1,val2\n", encoding="utf-8")
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                "--from-csv", str(bad_csv),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "Error" in result.output or "error" in result.output.lower()
+
+
+class TestKdbxReadError:
+    """Tests for kdbx read error in the else branch (lines 189-191)."""
+
+    def test_import_kdbx_wrong_password(self, runner, sample_kdbx, tmp_path):
+        """A wrong kdbx password triggers the error path."""
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+            ],
+            input="wrongpass\n",
+        )
+        assert result.exit_code != 0
+        assert "Error" in result.output or "error" in result.output.lower()
+
+
+class TestRealImportLoop:
+    """Tests for the non-dry-run import loop (lines 239-273)."""
+
+    @patch("keypass_importer.cli.CyberArkClient")
+    @patch("keypass_importer.cli.authenticate")
+    def test_successful_account_creation(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
+        """Account created successfully when no duplicate exists."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        mock_client = MagicMock()
+        mock_client.find_existing_account.return_value = None
+        mock_client.create_account.return_value = "acct-12345"
+        mock_client_cls.return_value = mock_client
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--output-dir", str(tmp_path),
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        mock_client.create_account.assert_called_once()
+        mock_client.find_existing_account.assert_called_once()
+        # Verify results CSV was written
+        assert (tmp_path / "results.csv").exists()
+
+    @patch("keypass_importer.cli.CyberArkClient")
+    @patch("keypass_importer.cli.authenticate")
+    def test_duplicate_account_detected(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
+        """Duplicate is detected and skipped without creating."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        mock_client = MagicMock()
+        mock_client.find_existing_account.return_value = "existing-id-999"
+        mock_client_cls.return_value = mock_client
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--output-dir", str(tmp_path),
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        mock_client.find_existing_account.assert_called_once()
+        mock_client.create_account.assert_not_called()
+        # Verify duplicates CSV was written
+        assert (tmp_path / "duplicates.csv").exists()
+
+    @patch("keypass_importer.cli.CyberArkClient")
+    @patch("keypass_importer.cli.authenticate")
+    def test_import_error_during_create(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
+        """An exception during create_account results in a 'failed' entry."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        mock_client = MagicMock()
+        mock_client.find_existing_account.return_value = None
+        mock_client.create_account.side_effect = ValueError("API error: 403 Forbidden")
+        mock_client_cls.return_value = mock_client
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                str(sample_kdbx),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--output-dir", str(tmp_path),
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        # Verify failed CSV was written
+        assert (tmp_path / "failed.csv").exists()
+
+    @patch("keypass_importer.cli.CyberArkClient")
+    @patch("keypass_importer.cli.authenticate")
+    def test_real_import_from_csv_creates_account(self, mock_auth, mock_client_cls, runner, tmp_path):
+        """Non-dry-run import from CSV creates accounts successfully."""
+        mock_token = MagicMock()
+        mock_token.access_token = "fake_token"
+        mock_auth.return_value = mock_token
+
+        mock_client = MagicMock()
+        mock_client.find_existing_account.return_value = None
+        mock_client.create_account.return_value = "csv-acct-001"
+        mock_client_cls.return_value = mock_client
+
+        csv_file = tmp_path / "entries.csv"
+        csv_file.write_text(
+            "title,username,password,url,group,notes\n"
+            "WebApp,admin,s3cret,https://app.example.com,Servers/Web,some notes\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "import",
+                "--from-csv", str(csv_file),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--output-dir", str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0
+        mock_client.create_account.assert_called_once()
+        assert (tmp_path / "results.csv").exists()

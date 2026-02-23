@@ -109,3 +109,22 @@ class TestReadKeepass:
         titles = [e.title for e in entries]
         assert "has-user" in titles
         assert "no-user" not in titles
+
+    def test_skips_recycle_bin(self, tmp_path: Path):
+        """Line 49-50: Entries in the 'Recycle Bin' group are skipped."""
+        db_path = tmp_path / "recyclebin.kdbx"
+        kp = create_database(str(db_path), password="testpass")
+
+        # Create a Recycle Bin group with an entry
+        recycle_bin = kp.add_group(kp.root_group, "Recycle Bin")
+        kp.add_entry(recycle_bin, "deleted-entry", "trashed_user", "pw")
+
+        # Create a normal entry
+        kp.add_entry(kp.root_group, "normal-entry", "good_user", "pw")
+
+        kp.save()
+
+        entries = read_keepass(db_path, password="testpass")
+        titles = [e.title for e in entries]
+        assert "normal-entry" in titles
+        assert "deleted-entry" not in titles

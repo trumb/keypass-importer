@@ -70,6 +70,14 @@ class TestAppConfig:
             load_config(cfg_file)
 
 
+    def test_non_dict_yaml_raises(self, tmp_path: Path):
+        """Line 43: YAML that parses to a non-dict raises ValueError."""
+        cfg_file = tmp_path / "scalar.yaml"
+        cfg_file.write_text('"hello"')
+        with pytest.raises(ValueError, match="expected a mapping"):
+            load_config(cfg_file)
+
+
 class TestMappingRule:
     def test_basic_rule(self):
         rule = MappingRule(group="Web/Production", safe="Web-Safe")

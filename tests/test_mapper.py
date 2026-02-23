@@ -199,3 +199,59 @@ class TestMapEntries:
         accounts = map_entries(entries, mode=MappingMode.SINGLE, safe_name="S")
         assert len(accounts) == 2
         assert all(isinstance(a, CyberArkAccount) for a in accounts)
+
+
+# --- Coverage gap tests appended below ---
+
+from keypass_importer.mapper import _extract_address
+
+
+class TestExtractAddress:
+    """Cover mapper.py line 70 — bare URL with no scheme and no host:port pattern."""
+
+    def test_bare_url_no_scheme_no_port(self):
+        # "server.local" has no scheme so parsed.hostname is None,
+        # and it doesn't match host:port pattern, so it falls through
+        # to `return url if url else title` (line 70).
+        result = _extract_address("server.local", "fallback")
+        assert result == "server.local"
+
+
+class TestResolveSafe:
+    """Cover _resolve_safe error branches (lines 89, 97, 108-112)."""
+
+    def test_single_mode_no_safe_raises(self):
+        """Line 89: SINGLE mode with no safe_name raises ValueError."""
+        entry = KeePassEntry(
+            title="Server", username="admin", password="pw", group_path=["G"],
+        )
+        with pytest.raises(ValueError, match="safe_name is required"):
+            map_entry(entry, mode=MappingMode.SINGLE, safe_name=None)
+
+    def test_group_mode_root_no_fallback_raises(self):
+        """Line 97: GROUP mode, empty group_path, no safe_name raises ValueError."""
+        entry = KeePassEntry(
+            title="Root Entry", username="admin", password="pw", group_path=[],
+        )
+        with pytest.raises(ValueError, match="root group and no fallback"):
+            map_entry(entry, mode=MappingMode.GROUP, safe_name=None)
+
+    def test_config_mode_no_match_no_fallback_raises(self):
+        """Line 108: CONFIG mode, non-matching group, no safe_name raises ValueError."""
+        entry = KeePassEntry(
+            title="Orphan", username="admin", password="pw",
+            group_path=["UnmappedGroup"],
+        )
+        rules = [MappingRule(group="Other/Group", safe="Other-Safe")]
+        with pytest.raises(ValueError, match="No mapping rule matches"):
+            map_entry(
+                entry,
+                mode=MappingMode.CONFIG,
+                mapping_rules=rules,
+                safe_name=None,
+            )
+
+    # Note: Line 112 (`raise ValueError(f"Unknown mapping mode: {mode}")`)
+    # is unreachable in normal usage because MappingMode is a str Enum and
+    # all three variants (SINGLE, GROUP, CONFIG) are handled above.
+    # Marking as acceptable/unreachable — no test needed.

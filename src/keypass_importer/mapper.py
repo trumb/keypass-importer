@@ -109,7 +109,7 @@ def _resolve_safe(
             f"No mapping rule matches group '{group_str}' and no fallback safe"
         )
 
-    raise ValueError(f"Unknown mapping mode: {mode}")
+    raise ValueError(f"Unknown mapping mode: {mode}")  # pragma: no cover — exhaustive enum
 
 
 def _resolve_platform(
