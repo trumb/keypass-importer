@@ -70,6 +70,26 @@ keypass-importer import my-passwords.kdbx \
     --dry-run
 ```
 
+### Import from CSV
+
+Import entries from a CSV file instead of a .kdbx file:
+
+```bash
+keypass-importer import \
+    --from-csv entries.csv \
+    --tenant-url https://mycompany.privilegecloud.cyberark.cloud \
+    --client-id 01234567-abcd-ef01-2345-6789abcdef01 \
+    --safe MySafe
+```
+
+### Export Entries to CSV
+
+Dump all KeePass entries to CSV for auditing. Passwords are never included in the export:
+
+```bash
+keypass-importer export my-passwords.kdbx -o audit.csv
+```
+
 ## CLI Reference
 
 ### Global Options
@@ -105,13 +125,28 @@ List available safes in CyberArk. Opens a browser for OAuth2 authentication.
 | `--tenant-url` | Yes      | CyberArk Privilege Cloud tenant URL  |
 | `--client-id`  | Yes      | OIDC application client ID           |
 
+#### `export`
+
+```
+keypass-importer export <kdbx-file> [OPTIONS]
+```
+
+Export KeePass entries to a CSV file for auditing. Passwords are never included in the output. Prompts for the master password.
+
+| Option       | Required | Default      | Description                         |
+|--------------|----------|--------------|-------------------------------------|
+| `--output`/`-o` | No   | `export.csv` | Output CSV file path                |
+| `--no-notes` | No       | false        | Exclude the notes column from export |
+
+The exported CSV contains the columns: `group`, `title`, `username`, `url`, `detected_platform`, `notes`, and `custom_fields`.
+
 #### `import`
 
 ```
-keypass-importer import <kdbx-file> [OPTIONS]
+keypass-importer import [KDBX_FILE] [OPTIONS]
 ```
 
-Import KeePass entries into CyberArk Privilege Cloud. Prompts for the master password, authenticates via OAuth2 PKCE, maps entries to accounts, creates them in CyberArk, and writes CSV reports.
+Import entries into CyberArk Privilege Cloud from a KeePass .kdbx file or a CSV file. When using a .kdbx file, prompts for the master password. Authenticates via OAuth2 PKCE, maps entries to accounts, creates them in CyberArk, and writes CSV reports. Either a `KDBX_FILE` argument or `--from-csv` must be provided.
 
 | Option               | Required | Default | Description                                       |
 |----------------------|----------|---------|---------------------------------------------------|
@@ -124,12 +159,36 @@ Import KeePass entries into CyberArk Privilege Cloud. Prompts for the master pas
 | `--dry-run`          | No       | false   | Validate and preview mapping without importing    |
 | `--output-dir`       | No       | `.`     | Directory for CSV report output                   |
 | `--config`           | No       |         | YAML config file (CLI flags override config)      |
+| `--from-csv`         | No       |         | Read entries from a CSV file instead of .kdbx     |
 
 After import, three CSV reports are written to the output directory:
 
 - `results.csv` -- All entries with their import status
 - `duplicates.csv` -- Entries that already existed in CyberArk
 - `failed.csv` -- Entries that failed to import
+
+Each report row includes: `entry_title`, `entry_group`, `status`, `safe_name`, `account_id`, `detected_platform`, `url`, `timestamp`, and `error` (if applicable). The `detected_platform` column shows the auto-detected CyberArk platform ID, `url` shows the source URL, and `timestamp` records the UTC time of each import attempt.
+
+### CSV Input Format
+
+When using `--from-csv`, the input CSV must contain a header row. The following columns are supported:
+
+| Column     | Required | Description                                                    |
+|------------|----------|----------------------------------------------------------------|
+| `title`    | Yes      | Entry title (rows without a title default to "(untitled)")     |
+| `username` | Yes      | Account username (rows with empty username are skipped)        |
+| `password` | Yes      | Account password                                               |
+| `url`      | No       | URL for platform auto-detection                                |
+| `group`    | No       | Group path, slash-separated (e.g. `Servers/Linux`)             |
+| `notes`    | No       | Free-text notes                                                |
+
+Example CSV:
+
+```csv
+title,username,password,url,group,notes
+Web App Admin,admin,s3cret,https://app.example.com,Internet/WebApps,Production admin
+Linux Root,root,hunter2,ssh://10.0.1.5,Servers/Linux,
+```
 
 ## Configuration
 
@@ -281,8 +340,10 @@ keypass-importer/
     models.py            -- Pydantic data models
     config.py            -- YAML config loading
     keepass_reader.py    -- .kdbx file parsing
+    csv_reader.py        -- CSV file parsing (alternative to .kdbx)
     mapper.py            -- Entry-to-account mapping and platform detection
     reporter.py          -- CSV report generation
+    exporter.py          -- CSV export for auditing (no passwords)
     cyberark_auth.py     -- OAuth2 PKCE authentication
     cyberark_client.py   -- CyberArk REST API client
     cli.py               -- Click CLI commands

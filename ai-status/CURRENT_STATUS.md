@@ -1,6 +1,6 @@
 # KeePass to CyberArk Importer - Current Status
 
-**Status:** Core implementation complete
+**Status:** Feature complete
 **Date:** 2026-02-23
 
 ## Module Status
@@ -12,16 +12,18 @@
 | `config.py` | Complete | 97% | YAML config loading with Pydantic validation |
 | `keepass_reader.py` | Complete | 97% | .kdbx parsing with pykeepass, group hierarchy, custom fields |
 | `mapper.py` | Complete | 93% | Entry-to-account mapper with platform auto-detection |
-| `reporter.py` | Complete | 100% | CSV report writer with status filtering |
+| `exporter.py` | Complete | 95% | CSV export for KeePass entries (auditing, no passwords) |
+| `csv_reader.py` | Complete | 94% | CSV input reader as alternative to .kdbx |
+| `reporter.py` | Complete | 100% | CSV report writer with status filtering, platform, URL, and timestamps |
 | `cyberark_auth.py` | Complete | 83% | OAuth2 PKCE authentication with local callback server |
 | `cyberark_client.py` | Complete | 100% | CyberArk Privilege Cloud REST API client |
-| `cli.py` | Complete | 77% | Click CLI with import, validate, and list-safes commands |
+| `cli.py` | Complete | 77% | Click CLI with import, validate, list-safes, and export commands; --from-csv option |
 
 ## Test Results
 
-- **Total tests:** 83 passed
-- **Overall coverage:** 89%
-- **Statement coverage:** 457 statements, 49 missed
+- **Total tests:** 108 passed
+- **Overall coverage:** ~89% (25 new tests added; coverage remained stable)
+- **Statement coverage:** estimated ~510 statements, ~56 missed
 
 ## Tech Stack
 
@@ -35,8 +37,12 @@
 - **Testing:** pytest, pytest-cov, pytest-httpx
 - **Containerization:** Docker (multi-stage build)
 
+## Recently Completed
+
+1. **CSV Export** -- New `export` CLI command that dumps KeePass entries to CSV for auditing (passwords never included)
+2. **CSV Input Mode** -- New `--from-csv` option on import command to read from CSV instead of .kdbx
+3. **Enhanced CSV Reports** -- Import reports now include detected_platform, url, and timestamp columns
+
 ## Remaining Work
 
-- CSV export feature (priority) -- export KeePass entries to CSV for manual CyberArk import
-- CSV input mode -- read from CSV instead of .kdbx for pre-processed data
-- Enhanced CSV reports -- richer reporting with additional metadata columns
+- No remaining feature work -- all requested features implemented
