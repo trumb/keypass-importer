@@ -71,6 +71,12 @@ from keypass_importer.keepass.reader import read_keepass
     default=False,
     help="Use Windows user account (DPAPI) to unlock.",
 )
+@click.option(
+    "--write-back",
+    is_flag=True,
+    default=False,
+    help="Update KeePass entries with CyberArk metadata after import.",
+)
 def import_cmd(
     kdbx_file: Path | None,
     tenant_url: str,
@@ -85,6 +91,7 @@ def import_cmd(
     from_csv: Path | None,
     keyfile: Path | None,
     windows_credential: bool,
+    write_back: bool,
 ):
     """Import KeePass entries into CyberArk Privilege Cloud."""
     # Validate input source
@@ -118,6 +125,14 @@ def import_cmd(
         click.echo("Error: --safe is required for single mapping mode.", err=True)
         sys.exit(1)
 
+    # Validate write-back constraints
+    if write_back and from_csv:
+        click.echo("Warning: --write-back is not supported with --from-csv; ignoring.", err=True)
+        write_back = False
+
+    if write_back and dry_run:
+        write_back = False
+
     # Read entries from CSV or KeePass
     if from_csv:
         from keypass_importer.io.csv_reader import read_csv_entries
@@ -144,6 +159,18 @@ def import_cmd(
         source_name = kdbx_file.name
 
     click.echo(f"Found {len(entries)} entries in {source_name}")
+
+    # Open the raw PyKeePass database for write-back metadata tagging
+    kp_db = None
+    if write_back and not from_csv:
+        from keypass_importer.keepass.unlock import open_database as _open_db
+
+        kp_db = _open_db(
+            kdbx_file,
+            password=password,
+            keyfile=keyfile,
+            use_windows_credential=windows_credential,
+        )
 
     results: list[ImportResult] = []
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -241,6 +268,22 @@ def import_cmd(
                         )
                     )
 
+                    # Tag the KeePass entry with CyberArk metadata
+                    if write_back and kp_db:
+                        raw_entry = kp_db.find_entries(
+                            title=entry.title, first=True
+                        )
+                        if raw_entry:
+                            raw_entry.set_custom_property(
+                                "cyberark_account_id", account_id
+                            )
+                            raw_entry.set_custom_property(
+                                "cyberark_safe", account.safe_name
+                            )
+                            raw_entry.set_custom_property(
+                                "cyberark_imported_at", _ts
+                            )
+
                 except Exception as exc:
                     results.append(
                         ImportResult(
@@ -256,6 +299,13 @@ def import_cmd(
 
         finally:
             client.close()
+
+        # Save write-back metadata to the KeePass database
+        if write_back and kp_db:
+            from keypass_importer.keepass.writer import save as _save_db
+
+            _save_db(kp_db)
+            click.echo("KeePass database updated with CyberArk metadata.")
 
     # Write reports
     write_results_csv(results, output_dir / "results.csv")
