@@ -97,7 +97,7 @@ class TestGroupDelete:
             cli,
             [
                 "group", "delete", str(sample_kdbx),
-                "--name", "Servers/Linux",
+                "--name", "Servers/Linux", "--yes",
             ],
             input="testpass\n",
         )
@@ -121,7 +121,7 @@ class TestGroupDelete:
             cli,
             [
                 "group", "delete", str(db_path),
-                "--name", "HasChild",
+                "--name", "HasChild", "--yes",
             ],
             input="testpass\n",
         )
@@ -134,7 +134,7 @@ class TestGroupDelete:
             [
                 "group", "delete", str(sample_kdbx),
                 "--name", "Servers",
-                "--recursive",
+                "--recursive", "--yes",
             ],
             input="testpass\n",
         )
@@ -149,7 +149,7 @@ class TestGroupDelete:
             cli,
             [
                 "group", "delete", str(sample_kdbx),
-                "--name", "Ghost",
+                "--name", "Ghost", "--yes",
             ],
             input="testpass\n",
         )
@@ -161,8 +161,25 @@ class TestGroupDelete:
             cli,
             [
                 "group", "delete", str(sample_kdbx),
-                "--name", "Servers",
+                "--name", "Servers", "--yes",
             ],
             input="wrong\n",
         )
         assert result.exit_code != 0
+
+    def test_delete_aborted_by_user(self, runner, sample_kdbx):
+        """Declining the confirmation prompt aborts without deleting."""
+        result = runner.invoke(
+            cli,
+            [
+                "group", "delete", str(sample_kdbx),
+                "--name", "Servers/Linux",
+            ],
+            input="n\n",
+        )
+        assert result.exit_code == 0
+        assert "Aborted" in result.output
+        kp = _reopen(sample_kdbx)
+        servers = next(g for g in kp.root_group.subgroups if g.name == "Servers")
+        names = [g.name for g in servers.subgroups]
+        assert "Linux" in names

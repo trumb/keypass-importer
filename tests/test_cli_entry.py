@@ -198,7 +198,7 @@ class TestEntryDelete:
             cli,
             [
                 "entry", "delete", str(sample_kdbx),
-                "--title", "web-server",
+                "--title", "web-server", "--yes",
             ],
             input="testpass\n",
         )
@@ -214,7 +214,7 @@ class TestEntryDelete:
             cli,
             [
                 "entry", "delete", str(sample_kdbx),
-                "--title", "ghost",
+                "--title", "ghost", "--yes",
             ],
             input="testpass\n",
         )
@@ -227,7 +227,7 @@ class TestEntryDelete:
             [
                 "entry", "delete", str(sample_kdbx),
                 "--title", "web-server",
-                "--group", "Servers",
+                "--group", "Servers", "--yes",
             ],
             input="testpass\n",
         )
@@ -241,8 +241,23 @@ class TestEntryDelete:
             cli,
             [
                 "entry", "delete", str(sample_kdbx),
-                "--title", "web-server",
+                "--title", "web-server", "--yes",
             ],
             input="wrong\n",
         )
         assert result.exit_code != 0
+
+    def test_delete_aborted_by_user(self, runner, sample_kdbx):
+        """Declining the confirmation prompt aborts without deleting."""
+        result = runner.invoke(
+            cli,
+            [
+                "entry", "delete", str(sample_kdbx),
+                "--title", "web-server",
+            ],
+            input="n\n",
+        )
+        assert result.exit_code == 0
+        assert "Aborted" in result.output
+        kp = _reopen(sample_kdbx)
+        assert kp.find_entries(title="web-server", first=True) is not None

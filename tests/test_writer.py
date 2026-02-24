@@ -164,6 +164,18 @@ class TestUpdateEntry:
         result = update_entry(db, entry, title="Changed")
         assert result is entry
 
+    def test_update_unknown_field_raises(self, db):
+        """Passing an unrecognised keyword raises ValueError."""
+        entry = add_entry(db, [], "E", "u", "p")
+        with pytest.raises(ValueError, match="Unknown fields"):
+            update_entry(db, entry, titl="typo")
+
+    def test_update_unknown_and_valid_fields_raises(self, db):
+        """Mixing valid and unknown keywords still raises."""
+        entry = add_entry(db, [], "E", "u", "p")
+        with pytest.raises(ValueError, match="Unknown fields"):
+            update_entry(db, entry, title="ok", bad_field="nope")
+
 
 # ------------------------------------------------------------------
 # delete_entry

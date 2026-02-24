@@ -9,6 +9,8 @@ import click
 
 from keypass_importer.cli import cli
 from keypass_importer.cli.helpers import prompt_password
+from keypass_importer.keepass.unlock import open_database
+from keypass_importer.keepass.writer import add_group, delete_group, save
 
 
 @cli.group("group")
@@ -42,9 +44,6 @@ def group_add(
     """Add a new group to the KeePass database."""
     password = prompt_password(keyfile, windows_credential)
 
-    from keypass_importer.keepass.unlock import open_database
-    from keypass_importer.keepass.writer import add_group, save
-
     try:
         db = open_database(
             kdbx_file,
@@ -72,6 +71,7 @@ def group_add(
 @click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--name", required=True, help="Group path to delete (e.g. 'Servers/Linux').")
 @click.option("--recursive", is_flag=True, help="Delete group even if it has children.")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
 @click.option(
     "--keyfile",
     type=click.Path(exists=True, path_type=Path),
@@ -88,14 +88,17 @@ def group_delete(
     kdbx_file: Path,
     name: str,
     recursive: bool,
+    yes: bool,
     keyfile: Path | None,
     windows_credential: bool,
 ):
     """Delete a group from the KeePass database."""
-    password = prompt_password(keyfile, windows_credential)
+    label = f"group '{name}'" + (" and all children" if recursive else "")
+    if not yes and not click.confirm(f"Delete {label}?"):
+        click.echo("Aborted.")
+        return
 
-    from keypass_importer.keepass.unlock import open_database
-    from keypass_importer.keepass.writer import delete_group, save
+    password = prompt_password(keyfile, windows_credential)
 
     try:
         db = open_database(

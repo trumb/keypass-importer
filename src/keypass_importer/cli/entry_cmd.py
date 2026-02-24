@@ -9,6 +9,14 @@ import click
 
 from keypass_importer.cli import cli
 from keypass_importer.cli.helpers import prompt_password
+from keypass_importer.keepass.unlock import open_database
+from keypass_importer.keepass.writer import (
+    add_entry,
+    delete_entry,
+    find_entry,
+    save,
+    update_entry,
+)
 
 
 @cli.group()
@@ -49,9 +57,6 @@ def entry_add(
 ):
     """Add a new entry to the KeePass database."""
     password = prompt_password(keyfile, windows_credential)
-
-    from keypass_importer.keepass.unlock import open_database
-    from keypass_importer.keepass.writer import add_entry, save
 
     try:
         db = open_database(
@@ -106,9 +111,6 @@ def entry_edit(
     """Edit an existing entry in the KeePass database."""
     password = prompt_password(keyfile, windows_credential)
 
-    from keypass_importer.keepass.unlock import open_database
-    from keypass_importer.keepass.writer import find_entry, save, update_entry
-
     try:
         db = open_database(
             kdbx_file,
@@ -151,6 +153,7 @@ def entry_edit(
 @click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--title", required=True, help="Title of the entry to delete.")
 @click.option("--group", "group_str", default=None, help="Group path to scope search.")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
 @click.option(
     "--keyfile",
     type=click.Path(exists=True, path_type=Path),
@@ -167,14 +170,16 @@ def entry_delete(
     kdbx_file: Path,
     title: str,
     group_str: str | None,
+    yes: bool,
     keyfile: Path | None,
     windows_credential: bool,
 ):
     """Delete an entry from the KeePass database."""
-    password = prompt_password(keyfile, windows_credential)
+    if not yes and not click.confirm(f"Delete entry '{title}'?"):
+        click.echo("Aborted.")
+        return
 
-    from keypass_importer.keepass.unlock import open_database
-    from keypass_importer.keepass.writer import delete_entry, find_entry, save
+    password = prompt_password(keyfile, windows_credential)
 
     try:
         db = open_database(

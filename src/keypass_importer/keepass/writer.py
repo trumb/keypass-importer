@@ -5,13 +5,21 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pykeepass import PyKeePass
 
+if TYPE_CHECKING:
+    from pykeepass.entry import Entry
+    from pykeepass.group import Group
+
 logger = logging.getLogger(__name__)
 
+_SIMPLE_FIELDS = frozenset(("title", "username", "password", "url", "notes"))
+_KNOWN_FIELDS = _SIMPLE_FIELDS | {"custom_fields"}
 
-def find_or_create_group(db: PyKeePass, group_path: list[str]) -> object:
+
+def find_or_create_group(db: PyKeePass, group_path: list[str]) -> Group:
     """Navigate or create the group hierarchy.
 
     If the path is empty, return the root group.  For each segment in
@@ -39,7 +47,7 @@ def add_entry(
     url: str | None = None,
     notes: str | None = None,
     custom_fields: dict[str, str] | None = None,
-) -> object:
+) -> Entry:
     """Create a new entry in the specified group.
 
     The group hierarchy is created automatically if it does not exist.
@@ -55,14 +63,19 @@ def add_entry(
     return entry
 
 
-def update_entry(db: PyKeePass, entry: object, **changes) -> object:
+def update_entry(db: PyKeePass, entry: Entry, **changes) -> Entry:
     """Update fields on an existing pykeepass entry object.
 
     Supported keyword arguments: ``title``, ``username``, ``password``,
     ``url``, ``notes``, and ``custom_fields`` (a ``dict[str, str]``).
+
+    Raises ``ValueError`` if unrecognised field names are passed.
     """
-    simple_fields = ("title", "username", "password", "url", "notes")
-    for field in simple_fields:
+    unknown = set(changes) - _KNOWN_FIELDS
+    if unknown:
+        raise ValueError(f"Unknown fields: {', '.join(sorted(unknown))}")
+
+    for field in _SIMPLE_FIELDS:
         if field in changes:
             setattr(entry, field, changes[field])
 
@@ -75,14 +88,14 @@ def update_entry(db: PyKeePass, entry: object, **changes) -> object:
     return entry
 
 
-def delete_entry(db: PyKeePass, entry: object) -> None:
+def delete_entry(db: PyKeePass, entry: Entry) -> None:
     """Delete an entry from the database."""
     title = getattr(entry, "title", "<unknown>")
     db.delete_entry(entry)
     logger.info("Deleted entry '%s'", title)
 
 
-def add_group(db: PyKeePass, parent_path: list[str], name: str) -> object:
+def add_group(db: PyKeePass, parent_path: list[str], name: str) -> Group:
     """Create a new child group under the specified parent path.
 
     Raises ``ValueError`` if the parent group does not exist.
@@ -140,7 +153,7 @@ def find_entry(
     db: PyKeePass,
     title: str,
     group_path: list[str] | None = None,
-) -> object | None:
+) -> Entry | None:
     """Find an entry by title, optionally scoped to a group.
 
     Returns the entry or ``None`` if not found.
@@ -158,7 +171,7 @@ def find_entry(
 # Internal helpers
 # ------------------------------------------------------------------
 
-def _find_group(db: PyKeePass, group_path: list[str]) -> object | None:
+def _find_group(db: PyKeePass, group_path: list[str]) -> Group | None:
     """Walk *group_path* starting from the root group.
 
     Returns the final group or ``None`` if any segment is missing.

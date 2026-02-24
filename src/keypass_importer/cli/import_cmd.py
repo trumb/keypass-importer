@@ -134,6 +134,7 @@ def import_cmd(
         write_back = False
 
     # Read entries from CSV or KeePass
+    kp_db = None
     if from_csv:
         from keypass_importer.io.csv_reader import read_csv_entries
 
@@ -146,31 +147,55 @@ def import_cmd(
     else:
         password = prompt_password(keyfile, windows_credential)
 
-        try:
-            entries = read_keepass(
+        if write_back:
+            # Open once — use the raw PyKeePass handle for both reading
+            # entries and writing back metadata (avoids double decrypt).
+            from keypass_importer.keepass.unlock import open_database as _open_db
+            from keypass_importer.keepass.reader import _group_path, _custom_fields
+            from keypass_importer.core.models import KeePassEntry
+
+            kp_db = _open_db(
                 kdbx_file,
                 password=password,
                 keyfile=keyfile,
                 use_windows_credential=windows_credential,
             )
-        except (ValueError, FileNotFoundError) as exc:
-            click.echo(f"Error: {exc}", err=True)
-            sys.exit(1)
+            # Extract entries from the already-open handle
+            entries = []
+            for raw in kp_db.entries:
+                if raw.group and raw.group.name == "Recycle Bin":
+                    continue
+                username = raw.username or ""
+                if not username.strip():
+                    continue
+                entries.append(
+                    KeePassEntry(
+                        title=raw.title or "(untitled)",
+                        username=username,
+                        password=raw.password or "",
+                        url=raw.url,
+                        group_path=_group_path(raw),
+                        notes=raw.notes,
+                        custom_fields=_custom_fields(raw),
+                    )
+                )
+        else:
+            try:
+                entries = read_keepass(
+                    kdbx_file,
+                    password=password,
+                    keyfile=keyfile,
+                    use_windows_credential=windows_credential,
+                )
+            except (ValueError, FileNotFoundError) as exc:
+                click.echo(f"Error: {exc}", err=True)
+                sys.exit(1)
+
+        # Clear password from scope as early as possible
+        password = None  # noqa: F841
         source_name = kdbx_file.name
 
     click.echo(f"Found {len(entries)} entries in {source_name}")
-
-    # Open the raw PyKeePass database for write-back metadata tagging
-    kp_db = None
-    if write_back and not from_csv:
-        from keypass_importer.keepass.unlock import open_database as _open_db
-
-        kp_db = _open_db(
-            kdbx_file,
-            password=password,
-            keyfile=keyfile,
-            use_windows_credential=windows_credential,
-        )
 
     results: list[ImportResult] = []
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -270,9 +295,18 @@ def import_cmd(
 
                     # Tag the KeePass entry with CyberArk metadata
                     if write_back and kp_db:
+                        # Scope lookup by group to avoid ambiguity
+                        # with duplicate titles across groups.
                         raw_entry = kp_db.find_entries(
                             title=entry.title, first=True
                         )
+                        # Narrow: prefer match in same group
+                        if entry.group_path:
+                            from keypass_importer.keepass.writer import find_entry as _find
+                            scoped = _find(kp_db, entry.title, group_path=entry.group_path)
+                            if scoped is not None:
+                                raw_entry = scoped
+
                         if raw_entry:
                             raw_entry.set_custom_property(
                                 "cyberark_account_id", account_id
