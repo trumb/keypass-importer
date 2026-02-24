@@ -8,7 +8,7 @@ from pathlib import Path
 from pykeepass import PyKeePass
 from pykeepass.exceptions import CredentialsError
 
-from keypass_importer.models import KeePassEntry
+from keypass_importer.core.models import KeePassEntry
 
 logger = logging.getLogger(__name__)
 

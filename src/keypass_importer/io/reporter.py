@@ -8,7 +8,7 @@ from pathlib import Path
 
 import click
 
-from keypass_importer.models import ImportResult, ImportSummary
+from keypass_importer.core.models import ImportResult, ImportSummary
 
 logger = logging.getLogger(__name__)
 

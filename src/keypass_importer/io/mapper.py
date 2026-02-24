@@ -6,8 +6,8 @@ import logging
 import re
 from urllib.parse import urlparse
 
-from keypass_importer.config import MappingRule
-from keypass_importer.models import CyberArkAccount, KeePassEntry, MappingMode
+from keypass_importer.core.config import MappingRule
+from keypass_importer.core.models import CyberArkAccount, KeePassEntry, MappingMode
 
 logger = logging.getLogger(__name__)
 

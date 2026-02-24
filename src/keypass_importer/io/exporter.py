@@ -6,8 +6,8 @@ import csv
 import logging
 from pathlib import Path
 
-from keypass_importer.mapper import detect_platform
-from keypass_importer.models import KeePassEntry
+from keypass_importer.io.mapper import detect_platform
+from keypass_importer.core.models import KeePassEntry
 
 logger = logging.getLogger(__name__)
 

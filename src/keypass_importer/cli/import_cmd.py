@@ -1,8 +1,7 @@
-"""Click-based CLI for KeePass to CyberArk importer."""
+"""CLI import command."""
 
 from __future__ import annotations
 
-import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,82 +9,14 @@ from pathlib import Path
 import click
 from tqdm import tqdm
 
-from keypass_importer.config import load_config
-from keypass_importer.cyberark_auth import authenticate
-from keypass_importer.cyberark_client import CyberArkClient
-from keypass_importer.keepass_reader import read_keepass
-from keypass_importer.mapper import detect_platform, map_entry
-from keypass_importer.models import ImportResult, ImportSummary, MappingMode
-from keypass_importer.reporter import write_results_csv, write_summary
-
-
-@click.group()
-@click.option("--verbose", is_flag=True, help="Enable debug logging.")
-def cli(verbose: bool):
-    """KeePass to CyberArk Privilege Cloud importer."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(levelname)s: %(message)s",
-    )
-
-
-@cli.command()
-@click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path))
-def validate(kdbx_file: Path):
-    """Validate a KeePass file and show entry summary."""
-    password = click.prompt("KeePass master password", hide_input=True)
-    try:
-        entries = read_keepass(kdbx_file, password=password)
-    except (ValueError, FileNotFoundError) as exc:
-        click.echo(f"Error: {exc}", err=True)
-        sys.exit(1)
-
-    click.echo(f"\nFound {len(entries)} entries:\n")
-    for entry in entries:
-        group = entry.group_path_str or "(root)"
-        click.echo(f"  [{group}] {entry.title} ({entry.username})")
-
-
-@cli.command("list-safes")
-@click.option("--tenant-url", required=True, help="CyberArk tenant URL.")
-@click.option("--client-id", required=True, help="OIDC client ID.")
-def list_safes(tenant_url: str, client_id: str):
-    """List available safes in CyberArk."""
-    token = authenticate(tenant_url, client_id)
-    client = CyberArkClient(tenant_url, token.access_token)
-    try:
-        safes = client.list_safes()
-        click.echo(f"\nAvailable safes ({len(safes)}):\n")
-        for safe in safes:
-            click.echo(f"  - {safe}")
-    finally:
-        client.close()
-
-
-@cli.command()
-@click.argument("kdbx_file", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    default="export.csv",
-    help="Output CSV path.",
-)
-@click.option("--no-notes", is_flag=True, help="Exclude notes from export.")
-def export(kdbx_file: Path, output: Path, no_notes: bool):
-    """Export KeePass entries to CSV for auditing (no passwords)."""
-    password = click.prompt("KeePass master password", hide_input=True)
-    try:
-        entries = read_keepass(kdbx_file, password=password)
-    except (ValueError, FileNotFoundError) as exc:
-        click.echo(f"Error: {exc}", err=True)
-        sys.exit(1)
-
-    from keypass_importer.exporter import export_entries_csv
-
-    count = export_entries_csv(entries, output, include_notes=not no_notes)
-    click.echo(f"Exported {count} entries to {output}")
+from keypass_importer.cli import cli
+from keypass_importer.core.config import load_config
+from keypass_importer.core.models import ImportResult, ImportSummary, MappingMode
+from keypass_importer.cyberark.auth import authenticate
+from keypass_importer.cyberark.client import CyberArkClient
+from keypass_importer.io.mapper import detect_platform, map_entry
+from keypass_importer.io.reporter import write_results_csv, write_summary
+from keypass_importer.keepass.reader import read_keepass
 
 
 @cli.command("import")
@@ -160,7 +91,7 @@ def import_cmd(
         mapping_rules = cfg.mapping_rules or None
 
     if map_file:
-        from keypass_importer.config import load_config as _load
+        from keypass_importer.core.config import load_config as _load
 
         map_cfg = _load(map_file)
         mapping_rules = map_cfg.mapping_rules
@@ -174,7 +105,7 @@ def import_cmd(
 
     # Read entries from CSV or KeePass
     if from_csv:
-        from keypass_importer.csv_reader import read_csv_entries
+        from keypass_importer.io.csv_reader import read_csv_entries
 
         try:
             entries = read_csv_entries(from_csv)

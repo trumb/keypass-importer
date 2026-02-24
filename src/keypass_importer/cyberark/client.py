@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from keypass_importer.models import CyberArkAccount
+from keypass_importer.core.models import CyberArkAccount
 
 logger = logging.getLogger(__name__)
 

@@ -60,8 +60,8 @@ class TestImportDryRun:
 
 
 class TestListSafesCommand:
-    @patch("keypass_importer.cli.authenticate")
-    @patch("keypass_importer.cli.CyberArkClient")
+    @patch("keypass_importer.cli.safes_cmd.authenticate")
+    @patch("keypass_importer.cli.safes_cmd.CyberArkClient")
     def test_list_safes(self, mock_client_cls, mock_auth, runner):
         mock_token = MagicMock()
         mock_token.access_token = "fake_token"
@@ -331,8 +331,8 @@ class TestKdbxReadError:
 class TestRealImportLoop:
     """Tests for the non-dry-run import loop (lines 239-273)."""
 
-    @patch("keypass_importer.cli.CyberArkClient")
-    @patch("keypass_importer.cli.authenticate")
+    @patch("keypass_importer.cli.import_cmd.CyberArkClient")
+    @patch("keypass_importer.cli.import_cmd.authenticate")
     def test_successful_account_creation(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
         """Account created successfully when no duplicate exists."""
         mock_token = MagicMock()
@@ -362,8 +362,8 @@ class TestRealImportLoop:
         # Verify results CSV was written
         assert (tmp_path / "results.csv").exists()
 
-    @patch("keypass_importer.cli.CyberArkClient")
-    @patch("keypass_importer.cli.authenticate")
+    @patch("keypass_importer.cli.import_cmd.CyberArkClient")
+    @patch("keypass_importer.cli.import_cmd.authenticate")
     def test_duplicate_account_detected(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
         """Duplicate is detected and skipped without creating."""
         mock_token = MagicMock()
@@ -392,8 +392,8 @@ class TestRealImportLoop:
         # Verify duplicates CSV was written
         assert (tmp_path / "duplicates.csv").exists()
 
-    @patch("keypass_importer.cli.CyberArkClient")
-    @patch("keypass_importer.cli.authenticate")
+    @patch("keypass_importer.cli.import_cmd.CyberArkClient")
+    @patch("keypass_importer.cli.import_cmd.authenticate")
     def test_import_error_during_create(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
         """An exception during create_account results in a 'failed' entry."""
         mock_token = MagicMock()
@@ -421,8 +421,8 @@ class TestRealImportLoop:
         # Verify failed CSV was written
         assert (tmp_path / "failed.csv").exists()
 
-    @patch("keypass_importer.cli.CyberArkClient")
-    @patch("keypass_importer.cli.authenticate")
+    @patch("keypass_importer.cli.import_cmd.CyberArkClient")
+    @patch("keypass_importer.cli.import_cmd.authenticate")
     def test_real_import_from_csv_creates_account(self, mock_auth, mock_client_cls, runner, tmp_path):
         """Non-dry-run import from CSV creates accounts successfully."""
         mock_token = MagicMock()
@@ -490,8 +490,8 @@ class TestDryRunErrorPath:
 class TestClientClose:
     """Verify CyberArkClient.close() is exercised."""
 
-    @patch("keypass_importer.cli.CyberArkClient")
-    @patch("keypass_importer.cli.authenticate")
+    @patch("keypass_importer.cli.import_cmd.CyberArkClient")
+    @patch("keypass_importer.cli.import_cmd.authenticate")
     def test_client_close_called(self, mock_auth, mock_client_cls, runner, sample_kdbx, tmp_path):
         mock_token = MagicMock()
         mock_token.access_token = "fake_token"
