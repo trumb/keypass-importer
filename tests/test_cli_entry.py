@@ -162,6 +162,23 @@ class TestEntryEdit:
         found = kp.find_entries(title="web-server", first=True)
         assert found.password == "newpw"
 
+    def test_edit_url_and_notes(self, runner, sample_kdbx):
+        result = runner.invoke(
+            cli,
+            [
+                "entry", "edit", str(sample_kdbx),
+                "--title", "web-server",
+                "--url", "https://new.example.com",
+                "--notes", "Updated notes",
+            ],
+            input="testpass\n",
+        )
+        assert result.exit_code == 0
+        kp = _reopen(sample_kdbx)
+        found = kp.find_entries(title="web-server", first=True)
+        assert found.url == "https://new.example.com"
+        assert found.notes == "Updated notes"
+
     def test_edit_bad_password(self, runner, sample_kdbx):
         result = runner.invoke(
             cli,
