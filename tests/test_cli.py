@@ -515,3 +515,227 @@ class TestClientClose:
             input="testpass\n",
         )
         mock_client.close.assert_called_once()
+
+
+class TestKeyfileOption:
+    """Tests for --keyfile CLI option on validate, export, and import commands."""
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_validate_forwards_keyfile(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        key = tmp_path / "key.keyx"
+        key.write_bytes(b"fake-key")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["validate", str(kdbx), "--keyfile", str(key)],
+            input="\n",  # press Enter to skip password
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert call_kwargs.kwargs.get("keyfile") == key or call_kwargs[1].get("keyfile") == key
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_export_forwards_keyfile(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        key = tmp_path / "key.keyx"
+        key.write_bytes(b"fake-key")
+        out = tmp_path / "out.csv"
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["export", str(kdbx), "--keyfile", str(key), "--output", str(out)],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert call_kwargs.kwargs.get("keyfile") == key or call_kwargs[1].get("keyfile") == key
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_import_forwards_keyfile(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        key = tmp_path / "key.keyx"
+        key.write_bytes(b"fake-key")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            [
+                "import", str(kdbx),
+                "--keyfile", str(key),
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--dry-run",
+                "--output-dir", str(tmp_path),
+            ],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert call_kwargs.kwargs.get("keyfile") == key or call_kwargs[1].get("keyfile") == key
+
+
+class TestWindowsCredentialOption:
+    """Tests for --windows-credential CLI option on validate, export, and import commands."""
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_validate_forwards_windows_credential(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["validate", str(kdbx), "--windows-credential"],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert (
+            call_kwargs.kwargs.get("use_windows_credential") is True
+            or call_kwargs[1].get("use_windows_credential") is True
+        )
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_export_forwards_windows_credential(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        out = tmp_path / "out.csv"
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["export", str(kdbx), "--windows-credential", "--output", str(out)],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert (
+            call_kwargs.kwargs.get("use_windows_credential") is True
+            or call_kwargs[1].get("use_windows_credential") is True
+        )
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_import_forwards_windows_credential(self, mock_open, runner, tmp_path):
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            [
+                "import", str(kdbx),
+                "--windows-credential",
+                "--tenant-url", "https://t.cyberark.cloud",
+                "--client-id", "app",
+                "--safe", "TestSafe",
+                "--dry-run",
+                "--output-dir", str(tmp_path),
+            ],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        mock_open.assert_called_once()
+        call_kwargs = mock_open.call_args
+        assert (
+            call_kwargs.kwargs.get("use_windows_credential") is True
+            or call_kwargs[1].get("use_windows_credential") is True
+        )
+
+
+class TestPasswordPromptBehavior:
+    """Verify password prompt changes based on alternative credentials."""
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_keyfile_makes_password_optional(self, mock_open, runner, tmp_path):
+        """When --keyfile is provided, password prompt shows 'press Enter to skip'."""
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        key = tmp_path / "key.keyx"
+        key.write_bytes(b"fake-key")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["validate", str(kdbx), "--keyfile", str(key)],
+            input="\n",  # empty = skip password
+        )
+        assert result.exit_code == 0
+        # password should be None when skipped
+        call_kwargs = mock_open.call_args
+        pw = call_kwargs.kwargs.get("password") if call_kwargs.kwargs else call_kwargs[1].get("password")
+        assert pw is None
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_windows_credential_makes_password_optional(self, mock_open, runner, tmp_path):
+        """When --windows-credential is provided, password prompt shows 'press Enter to skip'."""
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["validate", str(kdbx), "--windows-credential"],
+            input="\n",
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_open.call_args
+        pw = call_kwargs.kwargs.get("password") if call_kwargs.kwargs else call_kwargs[1].get("password")
+        assert pw is None
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_keyfile_with_password_both_forwarded(self, mock_open, runner, tmp_path):
+        """When --keyfile is provided, user can still enter a password."""
+        kdbx = tmp_path / "test.kdbx"
+        kdbx.write_bytes(b"fake")
+        key = tmp_path / "key.keyx"
+        key.write_bytes(b"fake-key")
+
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        result = runner.invoke(
+            cli,
+            ["validate", str(kdbx), "--keyfile", str(key)],
+            input="mypassword\n",
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_open.call_args
+        pw = call_kwargs.kwargs.get("password") if call_kwargs.kwargs else call_kwargs[1].get("password")
+        assert pw == "mypassword"
