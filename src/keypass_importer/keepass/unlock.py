@@ -36,7 +36,7 @@ def open_database(
         transformed_key = dpapi_decrypt_user_key()
         logger.info("Using Windows credential (DPAPI) for unlock")
 
-    if not password and not keyfile and not use_windows_credential:
+    if password is None and not keyfile and not use_windows_credential:
         raise ValueError(
             "At least one credential required: password, keyfile, or windows-credential"
         )
