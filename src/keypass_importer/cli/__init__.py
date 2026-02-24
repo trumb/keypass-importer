@@ -23,3 +23,5 @@ from keypass_importer.cli import validate_cmd  # noqa: E402, F401
 from keypass_importer.cli import safes_cmd  # noqa: E402, F401
 from keypass_importer.cli import export_cmd  # noqa: E402, F401
 from keypass_importer.cli import import_cmd  # noqa: E402, F401
+from keypass_importer.cli import entry_cmd  # noqa: E402, F401
+from keypass_importer.cli import group_cmd  # noqa: E402, F401

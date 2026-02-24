@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from keypass_importer.cli import cli
+from keypass_importer.cli.helpers import prompt_password
 from keypass_importer.keepass.reader import read_keepass
 
 
@@ -27,17 +28,7 @@ from keypass_importer.keepass.reader import read_keepass
 )
 def validate(kdbx_file: Path, keyfile: Path | None, windows_credential: bool):
     """Validate a KeePass file and show entry summary."""
-    need_password = not (windows_credential or keyfile)
-    if need_password:
-        password = click.prompt("KeePass master password", hide_input=True)
-    else:
-        password = click.prompt(
-            "KeePass master password (press Enter to skip)",
-            hide_input=True,
-            default="",
-            show_default=False,
-        )
-        password = password or None
+    password = prompt_password(keyfile, windows_credential)
 
     try:
         entries = read_keepass(

@@ -10,6 +10,7 @@ import click
 from tqdm import tqdm
 
 from keypass_importer.cli import cli
+from keypass_importer.cli.helpers import prompt_password
 from keypass_importer.core.config import load_config
 from keypass_importer.core.models import ImportResult, ImportSummary, MappingMode
 from keypass_importer.cyberark.auth import authenticate
@@ -128,17 +129,7 @@ def import_cmd(
             sys.exit(1)
         source_name = from_csv.name
     else:
-        need_password = not (windows_credential or keyfile)
-        if need_password:
-            password = click.prompt("KeePass master password", hide_input=True)
-        else:
-            password = click.prompt(
-                "KeePass master password (press Enter to skip)",
-                hide_input=True,
-                default="",
-                show_default=False,
-            )
-            password = password or None
+        password = prompt_password(keyfile, windows_credential)
 
         try:
             entries = read_keepass(
