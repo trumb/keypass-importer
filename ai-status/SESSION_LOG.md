@@ -1,5 +1,36 @@
 # KeePass to CyberArk Importer - Session Log
 
+## Session: 2026-02-23 (Phase 2 Writer CRUD + CLI Entry/Group Commands)
+
+**Summary:** Implemented the complete Phase 2 feature set: a writer module for KeePass CRUD operations, CLI commands for entry and group management, a --write-back flag on the import command to tag KeePass entries with CyberArk metadata after import, and shared CLI helpers. Applied code review fixes for type annotations, double DB open avoidance, confirmation prompts, and field validation.
+
+### Tasks Completed
+
+1. **Writer module** (`keepass/writer.py`) -- Created CRUD functions for KeePass databases: `add_entry`, `update_entry`, `delete_entry`, `add_group`, `delete_group`, `save` (with automatic .bak backup), `find_entry`, and `find_or_create_group`. Validates unknown fields in `update_entry`. The `delete_group` function supports a `recursive` flag and raises on non-empty groups by default.
+2. **Entry CLI commands** (`cli/entry_cmd.py`) -- Added `kpi entry add`, `kpi entry edit`, and `kpi entry delete` subcommands. The `add` command takes --title, --username, --password, --url, --group, and --notes. The `edit` command accepts --new-title plus any field to change. The `delete` command requires --yes or prompts for confirmation. All commands support --keyfile and --windows-credential.
+3. **Group CLI commands** (`cli/group_cmd.py`) -- Added `kpi group add` and `kpi group delete` subcommands. The `add` command takes --name and --parent. The `delete` command supports --recursive (delete non-empty groups) and --yes (skip confirmation). All commands support --keyfile and --windows-credential.
+4. **Shared helpers** (`cli/helpers.py`) -- Extracted `prompt_password()` into a shared helper used by all commands. Password becomes optional when --keyfile or --windows-credential is present.
+5. **Write-back flag** (`cli/import_cmd.py`) -- Added `--write-back` flag to the import command. When enabled, after each successful CyberArk account creation the tool writes `cyberark_account_id`, `cyberark_safe`, and `cyberark_imported_at` custom properties back to the source KeePass entry. The DB is opened once and reused for both reading and writing. Automatically disabled with --from-csv (not applicable) and --dry-run.
+6. **Code review fixes** -- Applied review feedback: added type annotations to all new functions, eliminated double DB open in write-back path, added confirmation prompts to delete commands, added field validation in `update_entry`, and improved error messages.
+7. **Tests** -- 74 new tests across test_writer.py, test_cli_entry.py, test_cli_group.py, test_helpers.py, and test_write_back.py. Total: 259 tests passing with 99% coverage (938 statements, 2 missed).
+
+### Test Results
+
+- 259 tests passed (185 previous + 74 new)
+- Coverage: 99% (938 statements, 2 missed -- defensive continue in import_cmd.py write-back path)
+
+### Commits
+
+```
+8fe24c8 feat(keepass): add writer module with CRUD operations
+7be793b feat(cli): add entry and group management commands
+c84f991 feat(cli): add --write-back flag to import command
+3626010 test: close Phase 2 coverage gaps
+b47f54f fix: apply Phase 2 code review fixes
+```
+
+---
+
 ## Session: 2026-02-23 (Phase 1 MVP Unlock Methods)
 
 **Summary:** Added key file and Windows DPAPI support to the KeePass unlock flow. Users can now open .kdbx files with key files, Windows credentials (DPAPI), or any combination of password/keyfile/DPAPI.

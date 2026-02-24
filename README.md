@@ -1,6 +1,6 @@
 # keypass-importer
 
-A Python CLI tool that imports KeePass (.kdbx) password databases into CyberArk Privilege Cloud. It reads entries from a KeePass database, auto-detects CyberArk platform types, maps entries to safes using flexible mapping modes, and creates accounts via the CyberArk REST API with OAuth2 PKCE authentication.
+A Python CLI tool that imports KeePass (.kdbx) password databases into CyberArk Privilege Cloud. It reads entries from a KeePass database, auto-detects CyberArk platform types, maps entries to safes using flexible mapping modes, and creates accounts via the CyberArk REST API with OAuth2 PKCE authentication. It also supports direct KeePass database editing -- adding, modifying, and deleting entries and groups from the command line.
 
 ## Prerequisites
 
@@ -82,6 +82,18 @@ keypass-importer import my-passwords.kdbx \
     --dry-run
 ```
 
+Use `--write-back` to tag each KeePass entry with CyberArk metadata after a successful import:
+
+```bash
+keypass-importer import my-passwords.kdbx \
+    --tenant-url https://mycompany.privilegecloud.cyberark.cloud \
+    --client-id 01234567-abcd-ef01-2345-6789abcdef01 \
+    --safe MySafe \
+    --write-back
+```
+
+This writes `cyberark_account_id`, `cyberark_safe`, and `cyberark_imported_at` custom properties to each imported entry in the .kdbx file. A `.kdbx.bak` backup is created before saving.
+
 ### Import from CSV
 
 Import entries from a CSV file instead of a .kdbx file:
@@ -100,6 +112,60 @@ Dump all KeePass entries to CSV for auditing. Passwords are never included in th
 
 ```bash
 keypass-importer export my-passwords.kdbx -o audit.csv
+```
+
+### Manage Entries
+
+Add a new entry to a KeePass database:
+
+```bash
+keypass-importer entry add my-passwords.kdbx \
+    --title "Web App" \
+    --username admin \
+    --password s3cret \
+    --url https://app.example.com \
+    --group "Internet/WebApps"
+```
+
+Edit an existing entry:
+
+```bash
+keypass-importer entry edit my-passwords.kdbx \
+    --title "Web App" \
+    --username newadmin \
+    --url https://app-v2.example.com
+```
+
+Delete an entry (with confirmation prompt):
+
+```bash
+keypass-importer entry delete my-passwords.kdbx --title "Web App"
+```
+
+Skip the confirmation prompt with `--yes`:
+
+```bash
+keypass-importer entry delete my-passwords.kdbx --title "Web App" --yes
+```
+
+### Manage Groups
+
+Add a new group:
+
+```bash
+keypass-importer group add my-passwords.kdbx --name "Production" --parent "Servers/Linux"
+```
+
+Delete an empty group:
+
+```bash
+keypass-importer group delete my-passwords.kdbx --name "Servers/Linux/Old"
+```
+
+Delete a group and all its children with `--recursive`:
+
+```bash
+keypass-importer group delete my-passwords.kdbx --name "Servers/Linux/Old" --recursive --yes
 ```
 
 ## KeePass Unlock Methods
@@ -195,20 +261,23 @@ keypass-importer import [KDBX_FILE] [OPTIONS]
 
 Import entries into CyberArk Privilege Cloud from a KeePass .kdbx file or a CSV file. When using a .kdbx file, prompts for the master password. Authenticates via OAuth2 PKCE, maps entries to accounts, creates them in CyberArk, and writes CSV reports. Either a `KDBX_FILE` argument or `--from-csv` must be provided.
 
-| Option               | Required | Default | Description                                       |
-|----------------------|----------|---------|---------------------------------------------------|
-| `--tenant-url`       | Yes      |         | CyberArk Privilege Cloud tenant URL               |
-| `--client-id`        | Yes      |         | OIDC application client ID                        |
-| `--safe`             | No       |         | Target safe name (required for single mode)       |
-| `--mapping-mode`     | No       | single  | Mapping mode: `single`, `group`, or `config`      |
-| `--map-file`         | No       |         | YAML mapping rules file (for config mode)         |
-| `--default-platform` | No       |         | Override automatic platform detection             |
-| `--dry-run`          | No       | false   | Validate and preview mapping without importing    |
-| `--output-dir`       | No       | `.`     | Directory for CSV report output                   |
-| `--config`           | No       |         | YAML config file (CLI flags override config)      |
-| `--from-csv`         | No       |         | Read entries from a CSV file instead of .kdbx     |
-| `--keyfile`          | No       |         | Path to a .key/.keyx key file for composite key   |
-| `--windows-credential` | No     | false   | Use Windows user account (DPAPI) to unlock        |
+| Option                 | Required | Default | Description                                                     |
+|------------------------|----------|---------|-----------------------------------------------------------------|
+| `--tenant-url`         | Yes      |         | CyberArk Privilege Cloud tenant URL                             |
+| `--client-id`          | Yes      |         | OIDC application client ID                                      |
+| `--safe`               | No       |         | Target safe name (required for single mode)                     |
+| `--mapping-mode`       | No       | single  | Mapping mode: `single`, `group`, or `config`                    |
+| `--map-file`           | No       |         | YAML mapping rules file (for config mode)                       |
+| `--default-platform`   | No       |         | Override automatic platform detection                           |
+| `--dry-run`            | No       | false   | Validate and preview mapping without importing                  |
+| `--output-dir`         | No       | `.`     | Directory for CSV report output                                 |
+| `--config`             | No       |         | YAML config file (CLI flags override config)                    |
+| `--from-csv`           | No       |         | Read entries from a CSV file instead of .kdbx                   |
+| `--keyfile`            | No       |         | Path to a .key/.keyx key file for composite key                 |
+| `--windows-credential` | No       | false   | Use Windows user account (DPAPI) to unlock                      |
+| `--write-back`         | No       | false   | Update KeePass entries with CyberArk metadata after import      |
+
+The `--write-back` flag writes three custom properties to each successfully imported KeePass entry: `cyberark_account_id`, `cyberark_safe`, and `cyberark_imported_at`. A `.kdbx.bak` backup is created before saving. This flag is automatically disabled when used with `--from-csv` (no .kdbx to write to) or `--dry-run` (no real imports).
 
 After import, three CSV reports are written to the output directory:
 
@@ -217,6 +286,100 @@ After import, three CSV reports are written to the output directory:
 - `failed.csv` -- Entries that failed to import
 
 Each report row includes: `entry_title`, `entry_group`, `status`, `safe_name`, `account_id`, `detected_platform`, `url`, `timestamp`, and `error` (if applicable). The `detected_platform` column shows the auto-detected CyberArk platform ID, `url` shows the source URL, and `timestamp` records the UTC time of each import attempt.
+
+#### `entry`
+
+A command group for managing KeePass database entries directly.
+
+##### `entry add`
+
+```
+keypass-importer entry add <kdbx-file> [OPTIONS]
+```
+
+Add a new entry to the KeePass database.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--title`              | Yes      | Entry title                                           |
+| `--username`           | Yes      | Entry username                                        |
+| `--password`           | Yes      | Entry password                                        |
+| `--url`                | No       | Entry URL                                             |
+| `--group`              | No       | Group path (e.g. `Servers/Linux`); created if missing |
+| `--notes`              | No       | Entry notes                                           |
+| `--keyfile`            | No       | Path to .key/.keyx key file                           |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
+
+##### `entry edit`
+
+```
+keypass-importer entry edit <kdbx-file> [OPTIONS]
+```
+
+Edit an existing entry. Finds the entry by --title (and optionally --group to scope the search). Any field not specified is left unchanged.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--title`              | Yes      | Title of the entry to find                            |
+| `--group`              | No       | Group path to scope the search                        |
+| `--new-title`          | No       | New title for the entry                               |
+| `--username`           | No       | New username                                          |
+| `--password`           | No       | New password                                          |
+| `--url`                | No       | New URL                                               |
+| `--notes`              | No       | New notes                                             |
+| `--keyfile`            | No       | Path to .key/.keyx key file                           |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
+
+##### `entry delete`
+
+```
+keypass-importer entry delete <kdbx-file> [OPTIONS]
+```
+
+Delete an entry from the KeePass database. Prompts for confirmation unless `--yes` is provided.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--title`              | Yes      | Title of the entry to delete                          |
+| `--group`              | No       | Group path to scope the search                        |
+| `--yes`/`-y`           | No       | Skip confirmation prompt                              |
+| `--keyfile`            | No       | Path to .key/.keyx key file                           |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
+
+#### `group`
+
+A command group for managing KeePass database groups directly.
+
+##### `group add`
+
+```
+keypass-importer group add <kdbx-file> [OPTIONS]
+```
+
+Add a new group to the KeePass database.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--name`               | Yes      | Name of the new group                                 |
+| `--parent`             | No       | Parent group path (e.g. `Servers/Linux`)              |
+| `--keyfile`            | No       | Path to .key/.keyx key file                           |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
+
+##### `group delete`
+
+```
+keypass-importer group delete <kdbx-file> [OPTIONS]
+```
+
+Delete a group from the KeePass database. Prompts for confirmation unless `--yes` is provided. By default, refuses to delete non-empty groups; use `--recursive` to force.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--name`               | Yes      | Group path to delete (e.g. `Servers/Linux`)           |
+| `--recursive`          | No       | Delete group even if it has children                  |
+| `--yes`/`-y`           | No       | Skip confirmation prompt                              |
+| `--keyfile`            | No       | Path to .key/.keyx key file                           |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
 
 ### CSV Input Format
 
@@ -380,6 +543,8 @@ With coverage:
 pytest --cov=keypass_importer --cov-report=term-missing -v
 ```
 
+Current test suite: 259 tests, 99% coverage (938 statements, 2 missed).
+
 ### Project Structure
 
 ```
@@ -394,6 +559,7 @@ keypass-importer/
         reader.py            -- .kdbx file parsing with pykeepass
         unlock.py            -- Composite key builder (password, keyfile, DPAPI)
         _dpapi.py            -- Windows DPAPI decryption for user key unlock
+        writer.py            -- CRUD operations (add/update/delete entries and groups, save)
     cyberark/
         auth.py              -- OAuth2 PKCE authentication
         client.py            -- CyberArk REST API client
@@ -404,13 +570,16 @@ keypass-importer/
         reporter.py          -- CSV report generation
     cli/
         __init__.py          -- Click group definition
+        helpers.py           -- Shared CLI helpers (password prompts)
         validate_cmd.py      -- validate command
         safes_cmd.py         -- list-safes command
         export_cmd.py        -- export command
-        import_cmd.py        -- import command
-    sync/                    -- Reserved for bidirectional sync (future)
-    service/                 -- Reserved for service layer (future)
-  tests/                     -- Test suite (185 tests, 100% coverage)
+        import_cmd.py        -- import command (with --write-back support)
+        entry_cmd.py         -- entry add/edit/delete commands
+        group_cmd.py         -- group add/delete commands
+    sync/                    -- Reserved for bidirectional sync (Phase 3)
+    service/                 -- Reserved for service/watch mode (Phase 4)
+  tests/                     -- Test suite (259 tests, 99% coverage)
   Dockerfile                 -- Multi-stage container build
   pyproject.toml             -- Build configuration and dependencies
 ```
