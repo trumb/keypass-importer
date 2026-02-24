@@ -336,20 +336,32 @@ pytest --cov=keypass_importer --cov-report=term-missing -v
 ```
 keypass-importer/
   src/keypass_importer/
-    __init__.py          -- Package version
-    models.py            -- Pydantic data models
-    config.py            -- YAML config loading
-    keepass_reader.py    -- .kdbx file parsing
-    csv_reader.py        -- CSV file parsing (alternative to .kdbx)
-    mapper.py            -- Entry-to-account mapping and platform detection
-    reporter.py          -- CSV report generation
-    exporter.py          -- CSV export for auditing (no passwords)
-    cyberark_auth.py     -- OAuth2 PKCE authentication
-    cyberark_client.py   -- CyberArk REST API client
-    cli.py               -- Click CLI commands
-  tests/                 -- Test suite
-  Dockerfile             -- Multi-stage container build
-  pyproject.toml         -- Build configuration and dependencies
+    __init__.py              -- Package version + backward-compat shims
+    core/
+        models.py            -- Pydantic data models (KeePassEntry, CyberArkAccount, etc.)
+        config.py            -- YAML config loading with Pydantic validation
+        errors.py            -- Shared exception hierarchy
+    keepass/
+        reader.py            -- .kdbx file parsing with pykeepass
+    cyberark/
+        auth.py              -- OAuth2 PKCE authentication
+        client.py            -- CyberArk REST API client
+    io/
+        mapper.py            -- Entry-to-account mapping and platform detection
+        csv_reader.py        -- CSV file parsing (alternative to .kdbx)
+        exporter.py          -- CSV export for auditing (no passwords)
+        reporter.py          -- CSV report generation
+    cli/
+        __init__.py          -- Click group definition
+        validate_cmd.py      -- validate command
+        safes_cmd.py         -- list-safes command
+        export_cmd.py        -- export command
+        import_cmd.py        -- import command
+    sync/                    -- Reserved for bidirectional sync (future)
+    service/                 -- Reserved for service layer (future)
+  tests/                     -- Test suite (155 tests, 100% coverage)
+  Dockerfile                 -- Multi-stage container build
+  pyproject.toml             -- Build configuration and dependencies
 ```
 
 ## License

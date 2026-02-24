@@ -1,5 +1,38 @@
 # KeePass to CyberArk Importer - Session Log
 
+## Session: 2026-02-23 (Phase 0 sub-package refactor)
+
+**Summary:** Restructured flat module layout into layered sub-packages. Zero behavior changes. All existing tests preserved and passing.
+
+### Tasks Completed
+
+1. **Sub-package directories** -- Created core/, keepass/, cyberark/, io/, cli/, sync/, service/ with __init__.py files
+2. **Exception hierarchy** -- Created core/errors.py with KeyPassImporterError base and 5 specific exception types (DatabaseError, AuthenticationError, ApiError, ConfigError, SyncError)
+3. **Module moves** -- Used git mv to move all modules into sub-packages, preserving file history:
+   - models.py, config.py -> core/
+   - keepass_reader.py -> keepass/reader.py
+   - cyberark_auth.py, cyberark_client.py -> cyberark/auth.py, cyberark/client.py
+   - mapper.py, csv_reader.py, exporter.py, reporter.py -> io/
+4. **CLI split** -- Split monolithic cli.py into cli/__init__.py (group), validate_cmd.py, safes_cmd.py, export_cmd.py, import_cmd.py
+5. **Import updates** -- Updated all internal imports in moved source files to new sub-package paths
+6. **Backward compatibility** -- Added sys.modules shims in __init__.py so old import paths (e.g. `from keypass_importer.models import X`) still work
+7. **Test patch paths** -- Updated 12 @patch() decorators in test_cli.py to point to new CLI sub-module paths
+8. **Error tests** -- Added test_errors.py with 23 tests covering the full exception hierarchy
+9. **Documentation** -- Updated CURRENT_STATUS.md, SESSION_LOG.md, and README.md
+
+### Test Results
+
+- 155 tests passed (132 original + 23 new error hierarchy tests)
+- Coverage: 100% (602 statements, 0 missed)
+
+### Commits
+
+```
+b9ad7f9 refactor: restructure flat layout into layered sub-packages (Phase 0)
+```
+
+---
+
 ## Session: 2026-02-23 (dry-run fix)
 
 **Summary:** Fixed dry-run mode to work offline (no CyberArk auth required), validated with real .kdbx file, added 3 tests.
