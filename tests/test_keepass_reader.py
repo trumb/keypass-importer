@@ -2,6 +2,7 @@
 
 import pytest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 from pykeepass import create_database
 
 from keypass_importer.keepass_reader import read_keepass
@@ -128,3 +129,73 @@ class TestReadKeepass:
         titles = [e.title for e in entries]
         assert "normal-entry" in titles
         assert "deleted-entry" not in titles
+
+
+class TestReadKeepassUnlockForwarding:
+    """Verify read_keepass forwards new credential parameters to open_database."""
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_forwards_keyfile(self, mock_open):
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        read_keepass(Path("test.kdbx"), password="pw", keyfile=Path("key.keyx"))
+
+        mock_open.assert_called_once_with(
+            Path("test.kdbx"),
+            password="pw",
+            keyfile=Path("key.keyx"),
+            use_windows_credential=False,
+        )
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_forwards_windows_credential(self, mock_open):
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        read_keepass(Path("test.kdbx"), use_windows_credential=True)
+
+        mock_open.assert_called_once_with(
+            Path("test.kdbx"),
+            password=None,
+            keyfile=None,
+            use_windows_credential=True,
+        )
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_forwards_all_credentials(self, mock_open):
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        read_keepass(
+            Path("test.kdbx"),
+            password="pw",
+            keyfile=Path("key.keyx"),
+            use_windows_credential=True,
+        )
+
+        mock_open.assert_called_once_with(
+            Path("test.kdbx"),
+            password="pw",
+            keyfile=Path("key.keyx"),
+            use_windows_credential=True,
+        )
+
+    @patch("keypass_importer.keepass.reader.open_database")
+    def test_password_only_backward_compat(self, mock_open):
+        """Existing callers passing password= still work correctly."""
+        mock_kp = MagicMock()
+        mock_kp.entries = []
+        mock_open.return_value = mock_kp
+
+        read_keepass(Path("test.kdbx"), password="secret")
+
+        mock_open.assert_called_once_with(
+            Path("test.kdbx"),
+            password="secret",
+            keyfile=None,
+            use_windows_credential=False,
+        )

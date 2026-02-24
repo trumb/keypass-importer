@@ -5,10 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from pykeepass import PyKeePass
-from pykeepass.exceptions import CredentialsError
-
 from keypass_importer.core.models import KeePassEntry
+from keypass_importer.keepass.unlock import open_database
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +28,22 @@ def _custom_fields(entry) -> dict[str, str]:
     return {k: v for k, v in props.items() if v is not None}
 
 
-def read_keepass(path: Path, password: str) -> list[KeePassEntry]:
+def read_keepass(
+    path: Path,
+    password: str | None = None,
+    keyfile: Path | None = None,
+    use_windows_credential: bool = False,
+) -> list[KeePassEntry]:
     """Open a .kdbx file and return all usable entries.
 
     Skips entries without a username (required for CyberArk accounts).
     """
-    if not path.exists():
-        raise FileNotFoundError(f"KeePass file not found: {path}")
-
-    try:
-        kp = PyKeePass(str(path), password=password)
-    except CredentialsError as exc:
-        raise ValueError(f"Failed to open KeePass database: {exc}") from exc
+    kp = open_database(
+        path,
+        password=password,
+        keyfile=keyfile,
+        use_windows_credential=use_windows_credential,
+    )
 
     entries: list[KeePassEntry] = []
     for raw_entry in kp.entries:
