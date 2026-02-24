@@ -1,5 +1,33 @@
 # KeePass to CyberArk Importer - Session Log
 
+## Session: 2026-02-23 (Phase 1 MVP Unlock Methods)
+
+**Summary:** Added key file and Windows DPAPI support to the KeePass unlock flow. Users can now open .kdbx files with key files, Windows credentials (DPAPI), or any combination of password/keyfile/DPAPI.
+
+### Tasks Completed
+
+1. **Unlock module** (`keepass/unlock.py`) -- Created `open_database()` function supporting password-only, keyfile-only, password+keyfile, DPAPI, and any combination of credential methods. All validation (file existence, credential requirements) centralized here.
+2. **DPAPI module** (`keepass/_dpapi.py`) -- Created Windows DPAPI decryption using `CryptUnprotectData` via ctypes. Reads `%APPDATA%\KeePass\ProtectedUserKey.bin` and decrypts it. All tests mock the ctypes layer for cross-platform testing.
+3. **Reader integration** -- Rewired `reader.py` to delegate database opening to `open_database()`. Removed direct PyKeePass/CredentialsError handling from reader. Added `keyfile` and `use_windows_credential` parameters to `read_keepass()`. Fully backward-compatible.
+4. **CLI options** -- Added `--keyfile` and `--windows-credential` flags to all three commands (`validate`, `export`, `import`). Password prompt becomes optional when alternative methods are provided.
+5. **Tests** -- 30 new tests covering unlock module (11), DPAPI module (6), reader forwarding (4), and CLI options (9). All 185 tests pass with 100% coverage.
+
+### Test Results
+
+- 185 tests passed (155 previous + 30 new)
+- Coverage: 100% (662 statements, 0 missed)
+
+### Commits
+
+```
+e05808e feat(keepass): add unlock module with key file support
+d46bf1e feat(keepass): add DPAPI decryption for Windows user key unlock
+52ba05e feat(keepass): wire reader to use unlock module for all credential types
+d0c84a8 feat(cli): add --keyfile and --windows-credential options to all commands
+```
+
+---
+
 ## Session: 2026-02-23 (Phase 0 sub-package refactor)
 
 **Summary:** Restructured flat module layout into layered sub-packages. Zero behavior changes. All existing tests preserved and passing.

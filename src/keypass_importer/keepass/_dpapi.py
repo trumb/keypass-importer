@@ -33,8 +33,12 @@ def _get_user_key_path() -> Path:
     return Path(appdata) / "KeePass" / "ProtectedUserKey.bin"
 
 
-def _crypt_unprotect_data(encrypted: bytes) -> bytes:
-    """Decrypt data using Windows DPAPI CryptUnprotectData."""
+def _crypt_unprotect_data(encrypted: bytes) -> bytes:  # pragma: no cover
+    """Decrypt data using Windows DPAPI CryptUnprotectData.
+
+    Excluded from coverage: platform-specific Windows ctypes integration
+    that requires a live DPAPI session. Mocked at the boundary in tests.
+    """
     crypt32 = ctypes.windll.crypt32
 
     blob_in = _DataBlob()

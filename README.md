@@ -36,6 +36,18 @@ keypass-importer validate my-passwords.kdbx
 
 You will be prompted for the KeePass master password. Output shows each entry with its group path, title, and username.
 
+To unlock with a key file instead of (or in addition to) a master password:
+
+```bash
+keypass-importer validate my-passwords.kdbx --keyfile my-key.keyx
+```
+
+To unlock using Windows user account credentials (DPAPI):
+
+```bash
+keypass-importer validate my-passwords.kdbx --windows-credential
+```
+
 ### List Available Safes
 
 Authenticate to CyberArk and list all safes your account can access:
@@ -90,6 +102,34 @@ Dump all KeePass entries to CSV for auditing. Passwords are never included in th
 keypass-importer export my-passwords.kdbx -o audit.csv
 ```
 
+## KeePass Unlock Methods
+
+The tool supports three ways to unlock KeePass .kdbx databases. These can be combined:
+
+| Method | Flag | Description |
+|--------|------|-------------|
+| Master password | (prompted) | Standard KeePass master password |
+| Key file | `--keyfile PATH` | .key or .keyx key file for composite key unlock |
+| Windows credential | `--windows-credential` | DPAPI decryption using the Windows user account |
+
+When `--keyfile` or `--windows-credential` is provided, the master password prompt becomes optional (press Enter to skip). You can combine methods for composite key databases:
+
+```bash
+# Password + key file
+keypass-importer validate db.kdbx --keyfile my-key.keyx
+
+# Key file only (press Enter at password prompt to skip)
+keypass-importer validate db.kdbx --keyfile my-key.keyx
+
+# Windows credential only
+keypass-importer validate db.kdbx --windows-credential
+
+# All three
+keypass-importer validate db.kdbx --keyfile my-key.keyx --windows-credential
+```
+
+The `--windows-credential` option reads the encrypted user key from `%APPDATA%\KeePass\ProtectedUserKey.bin` and decrypts it using the Windows DPAPI. This only works on the same Windows user account that created the protected key.
+
 ## CLI Reference
 
 ### Global Options
@@ -107,10 +147,15 @@ keypass-importer [--verbose] <command>
 #### `validate`
 
 ```
-keypass-importer validate <kdbx-file>
+keypass-importer validate <kdbx-file> [--keyfile PATH] [--windows-credential]
 ```
 
-Validate a KeePass file can be parsed and display an entry summary. Prompts for the master password. Does not require CyberArk credentials.
+Validate a KeePass file can be parsed and display an entry summary. Prompts for the master password unless an alternative unlock method is provided. Does not require CyberArk credentials.
+
+| Option                 | Required | Description                                           |
+|------------------------|----------|-------------------------------------------------------|
+| `--keyfile`            | No       | Path to a .key/.keyx key file for composite key unlock |
+| `--windows-credential` | No       | Use Windows user account (DPAPI) to unlock            |
 
 #### `list-safes`
 
@@ -131,12 +176,14 @@ List available safes in CyberArk. Opens a browser for OAuth2 authentication.
 keypass-importer export <kdbx-file> [OPTIONS]
 ```
 
-Export KeePass entries to a CSV file for auditing. Passwords are never included in the output. Prompts for the master password.
+Export KeePass entries to a CSV file for auditing. Passwords are never included in the output. Prompts for the master password unless an alternative unlock method is provided.
 
-| Option       | Required | Default      | Description                         |
-|--------------|----------|--------------|-------------------------------------|
-| `--output`/`-o` | No   | `export.csv` | Output CSV file path                |
-| `--no-notes` | No       | false        | Exclude the notes column from export |
+| Option                 | Required | Default      | Description                                           |
+|------------------------|----------|--------------|-------------------------------------------------------|
+| `--output`/`-o`        | No       | `export.csv` | Output CSV file path                                  |
+| `--no-notes`           | No       | false        | Exclude the notes column from export                  |
+| `--keyfile`            | No       |              | Path to a .key/.keyx key file for composite key unlock |
+| `--windows-credential` | No       | false        | Use Windows user account (DPAPI) to unlock            |
 
 The exported CSV contains the columns: `group`, `title`, `username`, `url`, `detected_platform`, `notes`, and `custom_fields`.
 
@@ -160,6 +207,8 @@ Import entries into CyberArk Privilege Cloud from a KeePass .kdbx file or a CSV 
 | `--output-dir`       | No       | `.`     | Directory for CSV report output                   |
 | `--config`           | No       |         | YAML config file (CLI flags override config)      |
 | `--from-csv`         | No       |         | Read entries from a CSV file instead of .kdbx     |
+| `--keyfile`          | No       |         | Path to a .key/.keyx key file for composite key   |
+| `--windows-credential` | No     | false   | Use Windows user account (DPAPI) to unlock        |
 
 After import, three CSV reports are written to the output directory:
 
@@ -343,6 +392,8 @@ keypass-importer/
         errors.py            -- Shared exception hierarchy
     keepass/
         reader.py            -- .kdbx file parsing with pykeepass
+        unlock.py            -- Composite key builder (password, keyfile, DPAPI)
+        _dpapi.py            -- Windows DPAPI decryption for user key unlock
     cyberark/
         auth.py              -- OAuth2 PKCE authentication
         client.py            -- CyberArk REST API client
@@ -359,7 +410,7 @@ keypass-importer/
         import_cmd.py        -- import command
     sync/                    -- Reserved for bidirectional sync (future)
     service/                 -- Reserved for service layer (future)
-  tests/                     -- Test suite (155 tests, 100% coverage)
+  tests/                     -- Test suite (185 tests, 100% coverage)
   Dockerfile                 -- Multi-stage container build
   pyproject.toml             -- Build configuration and dependencies
 ```
